@@ -1,0 +1,24 @@
+telegram:
+  bot_token: "{{TELEGRAM_BOT_TOKEN}}"
+  allowed_users: "{{TELEGRAM_ALLOWED_USERS}}"
+
+# Browser HTTP API for local web search/fetch
+tools:
+  http_request:
+    enabled: true
+    base_url: "http://localhost:{{BROWSER_SERVER_PORT}}"
+
+# LLM providers (API keys passed via environment in docker-compose.yml)
+providers:
+  anthropic:
+    enabled: true
+  openrouter:
+    enabled: true
+
+# Memory settings
+memory:
+  enabled: true
+
+# Logging
+logging:
+  level: "info"

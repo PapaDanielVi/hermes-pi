@@ -1,0 +1,8 @@
+.claude/
+.env
+.env.local
+*.log
+__pycache__/
+*.pyc
+browser/venv/
+plan.md

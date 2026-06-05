@@ -1,0 +1,32 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes
+    restart: unless-stopped
+    command: gateway run
+    network_mode: host # lets it reach localhost:5555 (browser server)
+    volumes:
+      - ~/.hermes:/opt/data
+    env_file:
+      - .env
+    environment:
+      - HERMES_DASHBOARD=${HERMES_DASHBOARD:-1}
+      # Telegram
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}
+      # LLM providers (only the ones set in .env are forwarded)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    deploy:
+      resources:
+        limits:
+          memory: 3G # leave ~5 GB for browser server + OS
+          cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8642/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    # On graceful stop, trigger a memory sync before the container exits
+    stop_grace_period: 30s
