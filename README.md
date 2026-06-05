@@ -72,7 +72,7 @@ sudo reboot
 
 ```bash
 cd ~
-git clone https://github.com/YOUR_USERNAME/hermes-pi.git
+git clone https://github.com/PapaDanielVi/hermes-pi.git
 cd hermes-pi
 cp .env.example .env
 nano .env          # fill in all required values (see .env.example comments)
