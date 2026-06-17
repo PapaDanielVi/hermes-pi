@@ -71,6 +71,7 @@ run_local() {
     "scripts/03_browser_setup.sh"
     "scripts/04_hermes_start.sh"
     "scripts/05_github_memory.sh"
+    "scripts/06_security_check.sh"
   )
   for script in "${scripts[@]}"; do
     info "Running $script …"

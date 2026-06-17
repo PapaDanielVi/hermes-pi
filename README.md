@@ -64,6 +64,7 @@ scripts/
 ├── 03_browser_setup.sh          ← Browser service setup
 ├── 04_hermes_start.sh           ← Docker start
 ├── 05_github_memory.sh          ← GitHub sync config
+├── 06_security_check.sh         ← Read-only security review (suggestions only)
 └── hermes-stop.sh               ← Graceful shutdown with sync
 ```
 
@@ -125,6 +126,8 @@ Under the hood the local install runs:
 - `scripts/04_hermes_start.sh` — pulls the image and starts Hermes
 - `scripts/05_github_memory.sh` — configures git, installs the sync cron, enables the
   systemd service for boot/shutdown
+- `scripts/06_security_check.sh` — read-only security review of the Pi; prints findings
+  and suggested fixes, changes nothing
 
 ### 4  Finish configuration (if you skipped any)
 
@@ -144,6 +147,31 @@ You can also just re-run `./install.sh` to add the values to `.env`.
 Have each allowed user send `/start` to the bot. They should receive a greeting.
 Ask the agent to "search for today's news about Raspberry Pi" to verify the browser
 tool is working.
+
+---
+
+## Security review
+
+The last install step (`scripts/06_security_check.sh`) runs a quick, read-only review
+of the Pi and prints anything worth hardening. It never changes the system: every
+finding comes with the command to fix it, and you decide what to apply. None of the
+fixes are required for Hermes to run.
+
+It checks for:
+
+- `.env` readable by other local users (it holds your GitHub token and API keys)
+- the default `pi` account still being present (a common brute-force target)
+- SSH password authentication or direct root login being enabled
+- no fail2ban (bans IPs after repeated failed SSH logins)
+- no active host firewall (Hermes needs no inbound ports, so you can lock it down)
+- automatic security updates not installed
+- pending package updates
+
+Re-run it any time:
+
+```bash
+./scripts/06_security_check.sh
+```
 
 ---
 

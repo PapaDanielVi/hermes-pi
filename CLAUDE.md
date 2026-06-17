@@ -66,7 +66,7 @@ docker compose pull && docker compose up -d
 
 - **local** — installs on the current machine (the Pi). Runs `00_configure.sh`
   (prompts, writes `.env`), `00_preflight.sh` (requires 64-bit + apt, sets
-  `HERMES_MEM_LIMIT`), then the five sub-scripts below.
+  `HERMES_MEM_LIMIT`), then the six sub-scripts below.
 - **remote** — collects config on the controlling machine, then copies the repo and
   `.env` to the Pi over SSH and runs `install.sh --local --noninteractive` there.
 
@@ -84,6 +84,8 @@ Sub-scripts (local mode), in order:
 4. `scripts/04_hermes_start.sh` — pulls Docker image and starts Hermes
 5. `scripts/05_github_memory.sh` — configures git, installs the sync cron, and
    enables + starts `hermes.service` (boot auto-start, memory sync on shutdown)
+6. `scripts/06_security_check.sh` — read-only security review of the Pi; prints
+   findings and suggested fixes, changes nothing
 
 All scripts source `scripts/lib/common.sh` for logging and prompt helpers.
 
@@ -150,4 +152,5 @@ These files are part of the implementation:
 - `scripts/03_browser_setup.sh` — Uses uv to install Python deps, Playwright chromium, starts service
 - `scripts/04_hermes_start.sh` — Pulls and starts Hermes Docker container
 - `scripts/05_github_memory.sh` — Configures git and installs cron job
+- `scripts/06_security_check.sh` — Read-only post-install security review; suggests fixes, makes no changes
 - `scripts/hermes-stop.sh` — Stops Hermes with memory sync (for graceful shutdown)
