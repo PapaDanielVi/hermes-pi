@@ -1,0 +1,20 @@
+[Unit]
+Description=Hermes Agent Gateway (via Docker Compose)
+After=network-online.target docker.service hermes-browser.service
+Wants=network-online.target hermes-browser.service
+Requires=docker.service
+
+[Service]
+Type=simple
+WorkingDirectory={{REPO_DIR}}
+# Use stop script to sync memory before shutdown
+ExecStop={{REPO_DIR}}/scripts/hermes-stop.sh
+# Start via docker compose in detached mode
+ExecStart=/usr/bin/docker compose -f {{REPO_DIR}}/docker-compose.yml up -d
+ExecStopPost=/usr/bin/docker compose -f {{REPO_DIR}}/docker-compose.yml down
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

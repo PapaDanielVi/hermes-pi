@@ -3,7 +3,10 @@
 # Installs: Docker, Docker Compose, Python 3.11, uv, Chromium, Xvfb, git, jq, curl
 set -euo pipefail
 
-info() { echo "[01_system_deps] $*"; }
+REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+LOG_TAG="01_system_deps"
+# shellcheck source=scripts/lib/common.sh
+source "$REPO_DIR/scripts/lib/common.sh"
 
 info "Updating package lists…"
 sudo apt update -qq

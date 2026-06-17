@@ -14,11 +14,21 @@ set +a
 HERMES_HOME="$HOME/.hermes"
 SYNC_DIR="$HERMES_HOME/memory-sync"
 
+# Build authenticated URL for the memory repo
+MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_TOKEN@|")
+
 # ── Ensure sync directory exists and is a git repo ─────────────
 if [[ ! -d "$SYNC_DIR/.git" ]]; then
     echo "[sync] Initializing memory sync repository..."
-    mkdir -p "$SYNC_DIR"
-    git clone "$GITHUB_MEMORY_REPO" "$SYNC_DIR" --depth=1
+    # Remove stale directory if it exists but isn't a git repo
+    if [[ -d "$SYNC_DIR" ]]; then
+        rm -rf "$SYNC_DIR"
+    fi
+    git clone "$MEMORY_REPO_URL" "$SYNC_DIR" --depth=1
+else
+    echo "[sync] Memory sync repository already initialized, pulling latest..."
+    cd "$SYNC_DIR"
+    git pull origin main --depth=1 2>/dev/null || true
 fi
 
 cd "$SYNC_DIR"

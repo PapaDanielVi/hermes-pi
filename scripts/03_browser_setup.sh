@@ -4,7 +4,13 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-info() { echo "[03_browser_setup] $*"; }
+LOG_TAG="03_browser_setup"
+# shellcheck source=scripts/lib/common.sh
+source "$REPO_DIR/scripts/lib/common.sh"
+
+# Pick up a port override from .env so the service matches config.yaml.
+BROWSER_SERVER_PORT="$(env_get "$REPO_DIR/.env" BROWSER_SERVER_PORT)"
+BROWSER_SERVER_PORT="${BROWSER_SERVER_PORT:-5555}"
 
 # ── Ensure uv is installed ───────────────────────────────────────
 if ! command -v uv &>/dev/null; then
@@ -20,10 +26,21 @@ uv pip install --system -q -r "$REPO_DIR/browser/requirements.txt"
 info "Installing Playwright Chromium..."
 uv run --no-project playwright install chromium --with-deps
 
-# ── Copy systemd service file ───────────────────────────────────
+# ── Install browser to system location ────────────────────────────
+info "Installing browser files to /opt/hermes-pi..."
+sudo mkdir -p /opt/hermes-pi/browser
+sudo cp "$REPO_DIR/browser/browser_server.py" /opt/hermes-pi/browser/
+sudo cp "$REPO_DIR/browser/requirements.txt" /opt/hermes-pi/browser/
+
+# ── Copy and configure systemd service file ─────────────────────────
 info "Installing systemd service..."
 SERVICE_FILE="$REPO_DIR/browser/browser.service"
-sudo cp "$SERVICE_FILE" /etc/systemd/system/hermes-browser.service
+# Replace placeholders with the actual repo location and browser port.
+sudo mkdir -p /etc/systemd/system
+sudo sed \
+  -e "s|{{REPO_DIR}}|$REPO_DIR|g" \
+  -e "s|{{BROWSER_SERVER_PORT}}|$BROWSER_SERVER_PORT|g" \
+  "$SERVICE_FILE" | sudo tee /etc/systemd/system/hermes-browser.service > /dev/null
 
 # Enable and start service
 sudo systemctl daemon-reload

@@ -20,7 +20,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G # leave ~5 GB for browser server + OS
+          memory: ${HERMES_MEM_LIMIT:-3G} # set per-board by scripts/00_preflight.sh
           cpus: "2.0"
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8642/health"]
@@ -28,5 +28,5 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-    # On graceful stop, trigger a memory sync before the container exits
+    # ARM64 compatibility: nousresearch/hermes-agent:latest supports multi-arch including ARM64/v8
     stop_grace_period: 30s

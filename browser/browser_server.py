@@ -17,6 +17,8 @@ from pydantic import BaseModel
 
 # Playwright imports
 from playwright.sync_api import sync_playwright
+# Stealth plugin for bot detection bypass
+from playwright_stealth import stealth_sync
 
 # Default port from environment
 BROWSER_PORT = int(os.environ.get("BROWSER_SERVER_PORT", "5555"))
@@ -142,6 +144,8 @@ def search(request: SearchRequest) -> SearchResponse:
 
     try:
         page = browser.new_page()
+        # Apply stealth to bypass bot detection
+        stealth_sync(page)
         # DuckDuckGo search URL
         search_url = f"https://duckduckgo.com/html/?q={request.query}"
         page.goto(search_url, wait_until="networkidle", timeout=30000)
@@ -185,6 +189,8 @@ def fetch(request: FetchRequest) -> FetchResponse:
 
     try:
         page = browser.new_page()
+        # Apply stealth to bypass bot detection
+        stealth_sync(page)
         page.goto(request.url, wait_until="networkidle", timeout=30000)
 
         # Extract page title

@@ -4,20 +4,20 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/hermes-pi/browser
-Environment="BROWSER_SERVER_PORT=5555"
+WorkingDirectory={{REPO_DIR}}/browser
+Environment="BROWSER_SERVER_PORT={{BROWSER_SERVER_PORT}}"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-ExecStart=/usr/bin/python3 /opt/hermes-pi/browser/browser_server.py
+# Use xvfb-run for headless Chromium without X11 display
+ExecStart=/usr/bin/xvfb-run --auto-server-num --server-arg="-screen 0 1920x1080x24" /usr/bin/python3 {{REPO_DIR}}/browser/browser_server.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# Security hardening
+# Security hardening - relaxed for Pi deployment
 NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/hermes-pi/browser
+# ProtectHome must be disabled for Playwright cache access
+ProtectHome=false
 
 [Install]
 WantedBy=multi-user.target

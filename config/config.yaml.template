@@ -1,7 +1,3 @@
-telegram:
-  bot_token: "{{TELEGRAM_BOT_TOKEN}}"
-  allowed_users: "{{TELEGRAM_ALLOWED_USERS}}"
-
 # Browser HTTP API for local web search/fetch
 tools:
   http_request:

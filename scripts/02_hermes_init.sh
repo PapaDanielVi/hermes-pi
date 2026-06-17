@@ -4,7 +4,9 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-info() { echo "[02_hermes_init] $*"; }
+LOG_TAG="02_hermes_init"
+# shellcheck source=scripts/lib/common.sh
+source "$REPO_DIR/scripts/lib/common.sh"
 
 HERMES_HOME="$HOME/.hermes"
 mkdir -p "$HERMES_HOME/skills"
@@ -17,11 +19,23 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   # Source .env so we can substitute variables
   set -a; source "$REPO_DIR/.env"; set +a
 
+  # The Telegram block is only written when a bot token is present, so a deferred
+  # channel does not leave Hermes trying to start a gateway with an empty token.
+  if [[ -n "${TELEGRAM_BOT_TOKEN:-}" ]]; then
+    {
+      echo "telegram:"
+      echo "  bot_token: \"${TELEGRAM_BOT_TOKEN}\""
+      echo "  allowed_users: \"${TELEGRAM_ALLOWED_USERS:-}\""
+      echo
+    } > "$CONFIG_FILE"
+  else
+    : > "$CONFIG_FILE"
+    info "No Telegram token set — writing config.yaml without the telegram block."
+  fi
+
   sed \
-    -e "s|{{TELEGRAM_BOT_TOKEN}}|${TELEGRAM_BOT_TOKEN}|g" \
-    -e "s|{{TELEGRAM_ALLOWED_USERS}}|${TELEGRAM_ALLOWED_USERS}|g" \
     -e "s|{{BROWSER_SERVER_PORT}}|${BROWSER_SERVER_PORT:-5555}|g" \
-    "$REPO_DIR/config/config.yaml.template" > "$CONFIG_FILE"
+    "$REPO_DIR/config/config.yaml.template" >> "$CONFIG_FILE"
 else
   info "config.yaml already exists — skipping overwrite."
 fi

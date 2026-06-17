@@ -4,7 +4,9 @@
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-info() { echo "[05_github_memory] $*"; }
+LOG_TAG="05_github_memory"
+# shellcheck source=scripts/lib/common.sh
+source "$REPO_DIR/scripts/lib/common.sh"
 
 # ── Source .env for credentials ─────────────────────────────────
 set -a; source "$REPO_DIR/.env"; set +a
@@ -28,6 +30,22 @@ if [[ ! -d "$SYNC_CACHE/.git" ]]; then
     info "Cloning memory repo to cache location..."
     rm -rf "$SYNC_CACHE"
     git clone "$MEMORY_REPO_URL" "$SYNC_CACHE" --depth 1
+fi
+
+# ── Install and enable systemd service for boot + graceful shutdown ───
+info "Installing and enabling Hermes systemd service..."
+HERMES_SERVICE="$REPO_DIR/config/hermes.service"
+if [[ -f "$HERMES_SERVICE" ]]; then
+    sudo sed "s|{{REPO_DIR}}|$REPO_DIR|g" "$HERMES_SERVICE" | sudo tee /etc/systemd/system/hermes.service > /dev/null
+    sudo systemctl daemon-reload
+    # Enable so Hermes starts on boot and runs the memory sync on shutdown.
+    sudo systemctl enable hermes.service
+    # Mark it active now (idempotent: the container is already up from step 04)
+    # so the graceful ExecStop sync also fires on this session's shutdown.
+    sudo systemctl start hermes.service
+    info "hermes.service enabled (auto-start on boot, memory sync on shutdown)."
+else
+    warn "config/hermes.service missing — skipping systemd auto-start."
 fi
 
 # ── Install cron job ────────────────────────────────────────────
