@@ -28,6 +28,14 @@ GITHUB_MEMORY_REPO="$(env_get "$ENV_FILE" GITHUB_MEMORY_REPO)"
 GITHUB_TOKEN="$(env_get "$ENV_FILE" GITHUB_TOKEN)"
 ANTHROPIC_API_KEY="$(env_get "$ENV_FILE" ANTHROPIC_API_KEY)"
 OPENROUTER_API_KEY="$(env_get "$ENV_FILE" OPENROUTER_API_KEY)"
+HERMES_VOICE_ENABLED="$(env_get "$ENV_FILE" HERMES_VOICE_ENABLED)"
+HERMES_STT_PROVIDER="$(env_get "$ENV_FILE" HERMES_STT_PROVIDER)"
+HERMES_STT_MODEL="$(env_get "$ENV_FILE" HERMES_STT_MODEL)"
+HERMES_TTS_PROVIDER="$(env_get "$ENV_FILE" HERMES_TTS_PROVIDER)"
+HERMES_TTS_VOICE="$(env_get "$ENV_FILE" HERMES_TTS_VOICE)"
+GROQ_API_KEY="$(env_get "$ENV_FILE" GROQ_API_KEY)"
+ELEVENLABS_API_KEY="$(env_get "$ENV_FILE" ELEVENLABS_API_KEY)"
+VOICE_TOOLS_OPENAI_KEY="$(env_get "$ENV_FILE" VOICE_TOOLS_OPENAI_KEY)"
 
 # ── Validators ────────────────────────────────────────────────
 valid_repo_url() { [[ "$1" =~ ^https://github\.com/[^/]+/[^/]+/?$ ]]; }
@@ -55,6 +63,17 @@ write_env() {
     echo "HERMES_MEM_LIMIT=${MEM_LIMIT}"
     echo "BROWSER_SERVER_PORT=${BROWSER_PORT}"
     echo "HERMES_DASHBOARD=${DASHBOARD}"
+    echo
+    echo "# Voice mode (STT=speech-to-text, TTS=text-to-speech)"
+    echo "HERMES_VOICE_ENABLED=${HERMES_VOICE_ENABLED}"
+    echo "HERMES_STT_PROVIDER=${HERMES_STT_PROVIDER}"
+    echo "HERMES_STT_MODEL=${HERMES_STT_MODEL}"
+    echo "HERMES_TTS_PROVIDER=${HERMES_TTS_PROVIDER}"
+    echo "HERMES_TTS_VOICE=${HERMES_TTS_VOICE}"
+    echo "# Cloud voice API keys (only needed when STT/TTS provider is not local/edge)"
+    echo "GROQ_API_KEY=${GROQ_API_KEY}"
+    echo "ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}"
+    echo "VOICE_TOOLS_OPENAI_KEY=${VOICE_TOOLS_OPENAI_KEY}"
   } > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
 }
@@ -78,7 +97,7 @@ note "Answer the prompts below. Press Enter to keep a shown default."
 echo
 
 # ── Channel (Telegram) — skippable ────────────────────────────
-note "Step 1/3 · Telegram channel"
+note "Step 1/4 · Telegram channel"
 if prompt_yesno "Configure the Telegram channel now? (skip to set it up later)" "y"; then
   prompt_secret "Telegram bot token (from @BotFather)" TELEGRAM_BOT_TOKEN "$TELEGRAM_BOT_TOKEN"
   while :; do
@@ -95,7 +114,7 @@ fi
 echo
 
 # ── GitHub memory repo — required ─────────────────────────────
-note "Step 2/3 · GitHub memory repository (required)"
+note "Step 2/4 · GitHub memory repository (required)"
 while :; do
   prompt_value "Memory repo URL (https://github.com/owner/repo)" \
     GITHUB_MEMORY_REPO "$GITHUB_MEMORY_REPO"
@@ -112,7 +131,7 @@ done
 echo
 
 # ── LLM provider — skippable ──────────────────────────────────
-note "Step 3/3 · LLM provider"
+note "Step 3/4 · LLM provider"
 if prompt_yesno "Configure an LLM provider now? (skip to set it up later)" "y"; then
   local_provider=""
   prompt_value "Provider [anthropic/openrouter/both]" local_provider "anthropic"
@@ -132,9 +151,47 @@ else
 fi
 echo
 
+# ── Voice mode — optional ─────────────────────────────────────
+note "Step 4/4 · Voice mode"
+_voice_default="y"
+[[ "${HERMES_VOICE_ENABLED:-1}" == "0" ]] && _voice_default="n"
+if prompt_yesno "Enable voice mode? (send voice notes to the bot and get voice replies)" "$_voice_default"; then
+  HERMES_VOICE_ENABLED=1
+  prompt_value "STT provider [local/groq/openai]" HERMES_STT_PROVIDER "${HERMES_STT_PROVIDER:-local}"
+  case "${HERMES_STT_PROVIDER}" in
+    groq)
+      prompt_secret "Groq API key (for cloud Whisper transcription)" GROQ_API_KEY "$GROQ_API_KEY" ;;
+    openai)
+      prompt_secret "OpenAI API key (for cloud Whisper transcription)" VOICE_TOOLS_OPENAI_KEY "$VOICE_TOOLS_OPENAI_KEY" ;;
+    *)
+      info "Local Whisper — no API key needed. Model '${HERMES_STT_MODEL:-base}' downloads on the first voice note." ;;
+  esac
+  prompt_value "TTS provider [edge/elevenlabs/openai/piper]" HERMES_TTS_PROVIDER "${HERMES_TTS_PROVIDER:-edge}"
+  case "${HERMES_TTS_PROVIDER}" in
+    elevenlabs)
+      prompt_secret "ElevenLabs API key" ELEVENLABS_API_KEY "$ELEVENLABS_API_KEY" ;;
+    openai)
+      prompt_secret "OpenAI API key (for TTS)" VOICE_TOOLS_OPENAI_KEY "$VOICE_TOOLS_OPENAI_KEY" ;;
+    *)
+      info "No API key needed for '${HERMES_TTS_PROVIDER:-edge}'." ;;
+  esac
+else
+  HERMES_VOICE_ENABLED=0
+  info "Voice mode disabled. Re-run ./install.sh to enable it later."
+fi
+echo
+
 # Defaults for tuning values when starting from scratch.
 BROWSER_PORT="${BROWSER_PORT:-5555}"
 DASHBOARD="${DASHBOARD:-1}"
+HERMES_VOICE_ENABLED="${HERMES_VOICE_ENABLED:-1}"
+HERMES_STT_PROVIDER="${HERMES_STT_PROVIDER:-local}"
+HERMES_STT_MODEL="${HERMES_STT_MODEL:-base}"
+HERMES_TTS_PROVIDER="${HERMES_TTS_PROVIDER:-edge}"
+HERMES_TTS_VOICE="${HERMES_TTS_VOICE:-en-US-AriaNeural}"
+GROQ_API_KEY="${GROQ_API_KEY:-}"
+ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:-}"
+VOICE_TOOLS_OPENAI_KEY="${VOICE_TOOLS_OPENAI_KEY:-}"
 
 write_env
 info "✓ Wrote $ENV_FILE (permissions 600)."

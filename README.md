@@ -5,6 +5,7 @@ Self-hosted Hermes Agent on Raspberry Pi 5 with:
 - Telegram gateway (two-user allowlist)
 - Per-user memory backed up to a private GitHub repo
 - Local Chromium browser for web search (no third-party APIs)
+- Voice mode: send voice notes, get spoken replies as Telegram voice bubbles
 
 **Target hardware:** Raspberry Pi 4 or 5 (2 GB RAM or more) running a 64-bit OS:
 Raspberry Pi OS (Bookworm), Ubuntu Server arm64, or Debian arm64. A 32-bit OS will
@@ -21,12 +22,16 @@ internet, no inbound ports. Hermes auto-starts on boot and survives power-offs.
 
 ```
 Telegram ──► Hermes Gateway (Docker) ──► LLM API (Anthropic / OpenRouter)
-                    │                           │
-                    ├── ~/.hermes/state.db       ├── Browser Server (localhost:5555)
-                    │   (SQLite, per-session)    │   Playwright + Chromium + Xvfb
-                    │                           │
-                    └── GitHub Sync (cron)      └── DuckDuckGo / direct fetch
-                        per-user memory folders
+  (text +          │                           │
+  voice notes)     ├── ~/.hermes/state.db       ├── Browser Server (localhost:5555)
+                   │   (SQLite, per-session)    │   Playwright + Chromium + Xvfb
+                   │                           │
+                   ├── Voice: STT (Whisper)    └── DuckDuckGo / direct fetch
+                   │   + TTS (Edge) inside
+                   │   the container
+                   │
+                   └── GitHub Sync (cron)
+                       per-user memory folders
 ```
 
 Two separate processes run alongside each other:
@@ -48,6 +53,7 @@ hermes-pi/
 ├── docker-compose.yml
 ├── config/
 │   ├── config.yaml.template     ← copied to ~/.hermes/config.yaml
+│   ├── voice.yaml.template      ← voice/STT/TTS config (appended when enabled)
 │   ├── skill-browser.md         ← copied to ~/.hermes/skills/
 │   └── hermes.service           ← systemd unit (optional, for auto start/stop)
 ├── browser/
@@ -147,6 +153,36 @@ You can also just re-run `./install.sh` to add the values to `.env`.
 Have each allowed user send `/start` to the bot. They should receive a greeting.
 Ask the agent to "search for today's news about Raspberry Pi" to verify the browser
 tool is working.
+
+---
+
+## Voice mode
+
+The installer enables voice mode by default. No API keys or extra packages are
+needed: transcription runs via [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
+inside the Hermes container (the `base` Whisper model, ~150 MB, downloads on the first
+voice note), and replies are synthesised by Microsoft Edge TTS (free, cloud-based)
+then converted to OGG/Opus by ffmpeg — both already in the official image.
+
+Voice replies are off by default so text conversations are unaffected. Toggle per
+chat at runtime:
+
+| Command | Effect |
+|---------|--------|
+| `/voice on` | Voice reply only when you send a voice note |
+| `/voice tts` | Voice reply for every message |
+| `/voice off` | Back to text-only |
+| `/voice status` | Show the current mode |
+
+**Sending a voice note:** record a voice message in Telegram as normal. The bot
+transcribes it, replies in text (and in audio when voice is on).
+
+**RAM note:** the `base` Whisper model peaks at ~1 GB during transcription. On a 2 GB
+Pi 4 set `HERMES_STT_MODEL=tiny` in `.env` and re-run `./install.sh` to regenerate
+`~/.hermes/config.yaml`.
+
+**Cloud providers:** if you prefer faster or higher-quality transcription/TTS, the
+installer's Step 4 lets you pick Groq (STT) or ElevenLabs/OpenAI (TTS) instead.
 
 ---
 

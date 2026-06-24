@@ -145,10 +145,11 @@ run_remote() {
 # ──────────────────────────────────────────────────────────────
 print_summary() {
   local where="$1" target="${2:-}" ssh_opts_str="${3:-}"
-  local tg_token prov_a prov_o
+  local tg_token prov_a prov_o voice_enabled
   tg_token="$(env_get "$REPO_DIR/.env" TELEGRAM_BOT_TOKEN)"
   prov_a="$(env_get "$REPO_DIR/.env" ANTHROPIC_API_KEY)"
   prov_o="$(env_get "$REPO_DIR/.env" OPENROUTER_API_KEY)"
+  voice_enabled="$(env_get "$REPO_DIR/.env" HERMES_VOICE_ENABLED)"
 
   local prefix=""
   if [[ "$where" == "remote" ]]; then
@@ -172,6 +173,11 @@ print_summary() {
   info "    docker exec -it hermes bash      # plain shell fallback"
   info "  Logs:  docker compose logs -f hermes"
   info "  Browser server:  journalctl -u hermes-browser -f"
+  if [[ "${voice_enabled:-1}" == "1" ]]; then
+    info ""
+    info "  Voice mode is on. Send a Telegram voice note to try it."
+    info "  Toggle per-chat:  /voice tts (all replies), /voice on (voice-in only), /voice off"
+  fi
 
   if [[ -z "$prov_a" && -z "$prov_o" ]]; then
     info ""

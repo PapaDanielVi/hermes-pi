@@ -36,6 +36,19 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   sed \
     -e "s|{{BROWSER_SERVER_PORT}}|${BROWSER_SERVER_PORT:-5555}|g" \
     "$REPO_DIR/config/config.yaml.template" >> "$CONFIG_FILE"
+
+  # Append voice/STT/TTS config when voice mode is enabled.
+  if [[ "${HERMES_VOICE_ENABLED:-1}" == "1" ]]; then
+    info "Voice mode enabled — appending voice/STT/TTS config…"
+    sed \
+      -e "s|{{STT_PROVIDER}}|${HERMES_STT_PROVIDER:-local}|g" \
+      -e "s|{{STT_MODEL}}|${HERMES_STT_MODEL:-base}|g" \
+      -e "s|{{TTS_PROVIDER}}|${HERMES_TTS_PROVIDER:-edge}|g" \
+      -e "s|{{TTS_VOICE}}|${HERMES_TTS_VOICE:-en-US-AriaNeural}|g" \
+      "$REPO_DIR/config/voice.yaml.template" >> "$CONFIG_FILE"
+  else
+    info "Voice mode disabled — skipping voice config."
+  fi
 else
   info "config.yaml already exists — skipping overwrite."
 fi

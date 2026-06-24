@@ -8,6 +8,7 @@ hermes-pi is a self-hosted Hermes Agent deployment for Raspberry Pi 5 that provi
 - Telegram gateway with two-user allowlist
 - Per-user memory backed up to a private GitHub repo
 - Local Chromium browser for web search (no third-party APIs)
+- Voice mode: Telegram voice notes transcribed by local Whisper (STT) and spoken replies via Edge TTS
 
 ## Architecture
 
@@ -78,7 +79,7 @@ Sub-scripts (local mode), in order:
 
 1. `scripts/01_system_deps.sh` — Docker, Python, uv, Chromium, Xvfb, git
 2. `scripts/02_hermes_init.sh` — creates `~/.hermes`, writes `config.yaml` (telegram
-   block only when a token is set)
+   block only when a token is set; voice/STT/TTS block appended when enabled)
 3. `scripts/03_browser_setup.sh` — installs Python deps with uv, Playwright browsers,
    starts service (browser port templated from `.env`)
 4. `scripts/04_hermes_start.sh` — pulls Docker image and starts Hermes
@@ -86,6 +87,10 @@ Sub-scripts (local mode), in order:
    enables + starts `hermes.service` (boot auto-start, memory sync on shutdown)
 6. `scripts/06_security_check.sh` — read-only security review of the Pi; prints
    findings and suggested fixes, changes nothing
+
+`00_configure.sh` has four interactive steps: Telegram channel, GitHub memory repo,
+LLM provider, and voice mode (STT/TTS provider selection). Voice is enabled by
+default with local Whisper + Edge TTS (no keys required).
 
 All scripts source `scripts/lib/common.sh` for logging and prompt helpers.
 
@@ -105,6 +110,21 @@ Tuning (set automatically):
 - `HERMES_MEM_LIMIT` — Container memory cap, chosen by `00_preflight.sh` per board
 - `BROWSER_SERVER_PORT` — Default 5555
 - `HERMES_DASHBOARD` — Default 1 (enable dashboard)
+
+Voice mode (set by `00_configure.sh` Step 4; voice is on by default):
+- `HERMES_VOICE_ENABLED` — 1 to enable, 0 to disable
+- `HERMES_STT_PROVIDER` — `local` (default), `groq`, or `openai`
+- `HERMES_STT_MODEL` — Whisper model size; default `base`, use `tiny` on low-RAM boards
+- `HERMES_TTS_PROVIDER` — `edge` (default), `elevenlabs`, `openai`, or `piper`
+- `HERMES_TTS_VOICE` — Edge voice name; default `en-US-AriaNeural`
+- `GROQ_API_KEY` — Only needed when `HERMES_STT_PROVIDER=groq`
+- `ELEVENLABS_API_KEY` — Only needed when `HERMES_TTS_PROVIDER=elevenlabs`
+- `VOICE_TOOLS_OPENAI_KEY` — Only needed when STT or TTS provider is `openai`
+
+Voice STT/TTS run inside the `nousresearch/hermes-agent` container (no sidecar
+service). The container image already includes ffmpeg and faster-whisper. The Whisper
+model (~150 MB for `base`) downloads automatically on the first voice note and is
+cached in `~/.hermes/cache/huggingface` via `HF_HOME` in `docker-compose.yml`.
 
 ## GitHub Memory Layout
 
@@ -129,6 +149,7 @@ These files are part of the implementation:
 
 ### Config
 - `config/config.yaml.template` — Body of the Hermes config (BROWSER_SERVER_PORT substituted; telegram block prepended by `02` when a token is set)
+- `config/voice.yaml.template` — Voice/STT/TTS config fragment (STT_PROVIDER, STT_MODEL, TTS_PROVIDER, TTS_VOICE substituted; appended by `02` when `HERMES_VOICE_ENABLED=1`)
 - `config/skill-browser.md` — Skill teaching Hermes the browser API endpoints
 - `config/hermes.service` — systemd unit for the Hermes container (boot start, memory sync on stop)
 

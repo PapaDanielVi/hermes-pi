@@ -1,0 +1,35 @@
+
+# Voice mode (Telegram speech-in / speech-out).
+# Toggle replies per chat at runtime:
+#   /voice on     reply with voice only when the user sends a voice note
+#   /voice tts    reply with voice for every message
+#   /voice off    text-only replies
+#   /voice status show current mode
+voice:
+  auto_tts: false
+  beep_enabled: true
+  max_recording_seconds: 120
+
+# Speech-to-text: transcribes incoming Telegram voice notes.
+# provider "local" runs faster-whisper inside the container — no API key needed.
+# On 2-4 GB boards consider STT_MODEL=tiny to reduce RAM usage.
+stt:
+  enabled: true
+  provider: "{{STT_PROVIDER}}"
+  local:
+    model: "{{STT_MODEL}}"
+
+# Text-to-speech: spoken replies sent as native Telegram voice bubbles.
+# ffmpeg (included in the Hermes image) converts MP3 -> OGG/Opus automatically.
+tts:
+  provider: "{{TTS_PROVIDER}}"
+  edge:
+    voice: "{{TTS_VOICE}}"
+  elevenlabs:
+    voice_id: "pNInz6obpgDQGcFmaJgB"
+    model_id: "eleven_multilingual_v2"
+  openai:
+    model: "gpt-4o-mini-tts"
+    voice: "alloy"
+  piper:
+    voice: en_US-lessac-medium

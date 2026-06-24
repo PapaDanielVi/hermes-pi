@@ -17,6 +17,12 @@ services:
       # LLM providers (only the ones set in .env are forwarded)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      # Voice: cloud STT/TTS keys (empty by default; only needed for cloud providers)
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - VOICE_TOOLS_OPENAI_KEY=${VOICE_TOOLS_OPENAI_KEY:-}
+      # Cache faster-whisper models on the mounted volume so they survive restarts
+      - HF_HOME=/opt/data/cache/huggingface
     deploy:
       resources:
         limits:
