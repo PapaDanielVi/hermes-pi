@@ -31,7 +31,8 @@ SYNC_CACHE="$HOME/.hermes/memory-repo-cache"
 if [[ ! -d "$SYNC_CACHE/.git" ]]; then
     info "Setting up memory repo cache..."
     sudo rm -rf "$SYNC_CACHE"
-    mkdir -p "$SYNC_CACHE"
+    sudo mkdir -p "$SYNC_CACHE"
+    sudo chown -R "$USER:$USER" "$HOME/.hermes"
     cd "$SYNC_CACHE"
     git init
     git remote add origin "$MEMORY_REPO_URL"
