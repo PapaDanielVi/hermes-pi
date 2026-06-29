@@ -9,8 +9,9 @@ LOG_TAG="02_hermes_init"
 source "$REPO_DIR/scripts/lib/common.sh"
 
 HERMES_HOME="$HOME/.hermes"
-mkdir -p "$HERMES_HOME/skills"
-mkdir -p "$HERMES_HOME/logs"
+sudo mkdir -p "$HERMES_HOME/skills"
+sudo mkdir -p "$HERMES_HOME/logs"
+sudo chown -R "$USER:$USER" "$HERMES_HOME"
 
 # ── Copy config template if no config exists ──────────────────
 CONFIG_FILE="$HERMES_HOME/config.yaml"

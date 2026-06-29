@@ -24,7 +24,7 @@ sudo apt install -y --no-install-recommends \
 # ── Install uv system-wide ─────────────────────────────────────
 if ! command -v uv &>/dev/null; then
   info "Installing uv system-wide..."
-  sudo curl -LsSf https://astral.sh/uv/install.sh | sudo sh -s -- --install-dir /usr/local/bin
+  curl -LsSf https://astral.sh/uv/install.sh | sudo UV_INSTALL_DIR=/usr/local/bin sh
 else
   info "uv already installed: $(uv --version)"
 fi

@@ -28,9 +28,13 @@ MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_T
 SYNC_CACHE="$HOME/.hermes/memory-repo-cache"
 if [[ ! -d "$SYNC_CACHE/.git" ]]; then
     info "Cloning memory repo to cache location..."
-    rm -rf "$SYNC_CACHE"
+    sudo rm -rf "$SYNC_CACHE"
     git clone "$MEMORY_REPO_URL" "$SYNC_CACHE" --depth 1
 fi
+
+# Ensure ~/.hermes is fully owned by the current user (guards against sudo
+# leftovers from earlier install attempts).
+sudo chown -R "$USER:$USER" "$HOME/.hermes"
 
 # ── Install and enable systemd service for boot + graceful shutdown ───
 info "Installing and enabling Hermes systemd service..."

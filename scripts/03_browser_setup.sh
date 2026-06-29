@@ -15,16 +15,23 @@ BROWSER_SERVER_PORT="${BROWSER_SERVER_PORT:-5555}"
 # ── Ensure uv is installed ───────────────────────────────────────
 if ! command -v uv &>/dev/null; then
   info "Installing uv..."
-  sudo curl -LsSf https://astral.sh/uv/install.sh | sudo sh -s -- --install-dir /usr/local/bin
+  curl -LsSf https://astral.sh/uv/install.sh | sudo UV_INSTALL_DIR=/usr/local/bin sh
 fi
 
-# ── Install Python dependencies with uv ───────────────────────────
+VENV_DIR="/opt/hermes-pi/venv"
+
+# ── Create virtual environment ────────────────────────────────────
+info "Creating Python virtual environment at $VENV_DIR..."
+sudo mkdir -p /opt/hermes-pi
+sudo uv venv --clear "$VENV_DIR"
+
+# ── Install Python dependencies ───────────────────────────────────
 info "Installing Python dependencies with uv..."
-uv pip install --system -q -r "$REPO_DIR/browser/requirements.txt"
+sudo uv pip install --python "$VENV_DIR/bin/python" -q -r "$REPO_DIR/browser/requirements.txt"
 
 # ── Install Playwright browsers ─────────────────────────────────
 info "Installing Playwright Chromium..."
-uv run --no-project playwright install chromium --with-deps
+sudo "$VENV_DIR/bin/playwright" install chromium --with-deps
 
 # ── Install browser to system location ────────────────────────────
 info "Installing browser files to /opt/hermes-pi..."
