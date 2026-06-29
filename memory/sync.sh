@@ -20,11 +20,28 @@ MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_T
 # ── Ensure sync directory exists and is a git repo ─────────────
 if [[ ! -d "$SYNC_DIR/.git" ]]; then
     echo "[sync] Initializing memory sync repository..."
-    # Remove stale directory if it exists but isn't a git repo
     if [[ -d "$SYNC_DIR" ]]; then
         rm -rf "$SYNC_DIR"
     fi
-    git clone "$MEMORY_REPO_URL" "$SYNC_DIR" --depth=1
+    mkdir -p "$SYNC_DIR"
+    cd "$SYNC_DIR"
+    git init
+    git remote add origin "$MEMORY_REPO_URL"
+
+    if git ls-remote --exit-code --heads origin main &>/dev/null; then
+        git fetch origin main --depth=1
+        git checkout -b main origin/main
+    else
+        # Remote is empty: seed structure and push so future syncs have a base.
+        mkdir -p shared users
+        printf '# Hermes Agent Memory\n' > shared/MEMORY.md
+        printf '# Hermes Skills\n' > shared/skills.md
+        git add -A
+        git -c user.name="Hermes Agent" -c user.email="hermes@local" \
+            commit -m "Initial memory repository structure"
+        git branch -M main
+        git push -u origin main
+    fi
 else
     echo "[sync] Memory sync repository already initialized, pulling latest..."
     cd "$SYNC_DIR"

@@ -24,12 +24,34 @@ git config --global user.email "hermes@local"
 # Format: https://TOKEN@github.com/owner/repo.git
 MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_TOKEN@|")
 
-# Test clone to cache credentials
+# Set up local cache of the memory repo.
+# If the remote is empty (freshly created on GitHub), seed it with the initial
+# directory structure and push. Otherwise pull existing content.
 SYNC_CACHE="$HOME/.hermes/memory-repo-cache"
 if [[ ! -d "$SYNC_CACHE/.git" ]]; then
-    info "Cloning memory repo to cache location..."
+    info "Setting up memory repo cache..."
     sudo rm -rf "$SYNC_CACHE"
-    git clone "$MEMORY_REPO_URL" "$SYNC_CACHE" --depth 1
+    mkdir -p "$SYNC_CACHE"
+    cd "$SYNC_CACHE"
+    git init
+    git remote add origin "$MEMORY_REPO_URL"
+
+    if git ls-remote --exit-code --heads origin main &>/dev/null; then
+        info "Remote has commits, pulling..."
+        git fetch origin main --depth 1
+        git checkout -b main origin/main
+    else
+        info "Remote is empty, seeding initial structure and pushing..."
+        mkdir -p shared users
+        printf '# Hermes Agent Memory\n' > shared/MEMORY.md
+        printf '# Hermes Skills\n' > shared/skills.md
+        git add -A
+        git -c user.name="Hermes Agent" -c user.email="hermes@local" \
+            commit -m "Initial memory repository structure"
+        git branch -M main
+        git push -u origin main
+    fi
+    cd - > /dev/null
 fi
 
 # Ensure ~/.hermes is fully owned by the current user (guards against sudo
