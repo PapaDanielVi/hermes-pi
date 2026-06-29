@@ -120,10 +120,15 @@ run_remote() {
   esac
 
   local remote_dir="hermes-pi"
+
+  # Remove any root-owned leftovers inside the repo dir from prior failed runs
+  # (e.g. a literal '~' directory created when sudo didn't expand the tilde).
+  ssh "${ssh_opts[@]}" "$target" "sudo rm -rf '$remote_dir/~'" 2>/dev/null || true
+
   info "Copying repo and config to $target:~/$remote_dir …"
   if command -v rsync &>/dev/null; then
     rsync -az --delete \
-      --exclude '.git' --exclude '__pycache__' --exclude '*.pyc' \
+      --exclude '.git' --exclude '__pycache__' --exclude '*.pyc' --exclude '~' \
       -e "ssh ${ssh_opts[*]}" \
       "$REPO_DIR/" "$target:$remote_dir/"
   else
