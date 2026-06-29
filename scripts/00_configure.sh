@@ -28,6 +28,7 @@ GITHUB_MEMORY_REPO="$(env_get "$ENV_FILE" GITHUB_MEMORY_REPO)"
 GITHUB_TOKEN="$(env_get "$ENV_FILE" GITHUB_TOKEN)"
 ANTHROPIC_API_KEY="$(env_get "$ENV_FILE" ANTHROPIC_API_KEY)"
 OPENROUTER_API_KEY="$(env_get "$ENV_FILE" OPENROUTER_API_KEY)"
+OPENROUTER_MODEL="$(env_get "$ENV_FILE" OPENROUTER_MODEL)"
 HERMES_VOICE_ENABLED="$(env_get "$ENV_FILE" HERMES_VOICE_ENABLED)"
 HERMES_STT_PROVIDER="$(env_get "$ENV_FILE" HERMES_STT_PROVIDER)"
 HERMES_STT_MODEL="$(env_get "$ENV_FILE" HERMES_STT_MODEL)"
@@ -58,6 +59,7 @@ write_env() {
     echo "# LLM providers (leave empty to configure later inside the container)"
     echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
     echo "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}"
+    echo "OPENROUTER_MODEL=${OPENROUTER_MODEL}"
     echo
     echo "# Runtime tuning"
     echo "HERMES_MEM_LIMIT=${MEM_LIMIT}"
@@ -182,6 +184,7 @@ fi
 echo
 
 # Defaults for tuning values when starting from scratch.
+OPENROUTER_MODEL="${OPENROUTER_MODEL:-poolside/laguna-m.1:free}"
 BROWSER_PORT="${BROWSER_PORT:-5555}"
 DASHBOARD="${DASHBOARD:-1}"
 HERMES_VOICE_ENABLED="${HERMES_VOICE_ENABLED:-1}"

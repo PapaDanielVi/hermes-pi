@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # scripts/03_browser_setup.sh
-# Installs Playwright dependencies, playwright-stealth, and starts browser service
+# Installs Playwright dependencies, playwright-stealth, and starts browser service.
+# Re-running is safe: the venv and Chromium download are skipped when already present.
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -20,20 +21,32 @@ fi
 
 VENV_DIR="/opt/hermes-pi/venv"
 
-# ── Create virtual environment ────────────────────────────────────
-info "Creating Python virtual environment at $VENV_DIR..."
+# ── Create virtual environment (skip if already present) ─────────
 sudo mkdir -p /opt/hermes-pi
-sudo uv venv --clear "$VENV_DIR"
+if [[ ! -x "$VENV_DIR/bin/python" ]]; then
+  info "Creating Python virtual environment at $VENV_DIR..."
+  sudo uv venv "$VENV_DIR"
+else
+  info "Python virtual environment already exists at $VENV_DIR — skipping creation."
+fi
 
 # ── Install Python dependencies ───────────────────────────────────
+# Always run — it is fast and idempotent; picks up any new requirements.
 info "Installing Python dependencies with uv..."
 sudo uv pip install --python "$VENV_DIR/bin/python" -q -r "$REPO_DIR/browser/requirements.txt"
 
-# ── Install Playwright browsers ─────────────────────────────────
-info "Installing Playwright Chromium..."
-sudo "$VENV_DIR/bin/playwright" install chromium --with-deps
+# ── Install Playwright browsers (skip when sentinel is present) ─────
+CHROMIUM_SENTINEL="/opt/hermes-pi/.playwright-chromium-installed"
+if [[ ! -f "$CHROMIUM_SENTINEL" ]]; then
+  info "Installing Playwright Chromium..."
+  sudo "$VENV_DIR/bin/playwright" install chromium --with-deps
+  sudo touch "$CHROMIUM_SENTINEL"
+  info "✓ Playwright Chromium installed (sentinel created)."
+else
+  info "Playwright Chromium already installed — skipping (remove $CHROMIUM_SENTINEL to force reinstall)."
+fi
 
-# ── Install browser to system location ────────────────────────────
+# ── Install browser files to system location ───────────────────────
 info "Installing browser files to /opt/hermes-pi..."
 sudo mkdir -p /opt/hermes-pi/browser
 sudo cp "$REPO_DIR/browser/browser_server.py" /opt/hermes-pi/browser/
@@ -49,10 +62,10 @@ sudo sed \
   -e "s|{{BROWSER_SERVER_PORT}}|$BROWSER_SERVER_PORT|g" \
   "$SERVICE_FILE" | sudo tee /etc/systemd/system/hermes-browser.service > /dev/null
 
-# Enable and start service
+# Enable and (re)start service so a re-rendered unit file takes effect.
 sudo systemctl daemon-reload
 sudo systemctl enable hermes-browser.service
-sudo systemctl start hermes-browser.service
+sudo systemctl restart hermes-browser.service
 
 # ── Verify service ────────────────────────────────────────────────
 sleep 2

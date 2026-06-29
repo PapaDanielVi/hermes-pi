@@ -11,6 +11,18 @@ providers:
   openrouter:
     enabled: true
 
+# Active model — OpenRouter free tier by default, override via OPENROUTER_MODEL in .env
+model:
+  provider: openrouter
+  default: "{{OPENROUTER_MODEL}}"
+  base_url: ''
+  api_mode: chat_completions
+
+# Multi-agent task board (reachable as /kanban from Telegram)
+kanban:
+  dispatch_in_gateway: true
+  dispatch_interval_seconds: 60
+
 # Memory settings
 memory:
   enabled: true

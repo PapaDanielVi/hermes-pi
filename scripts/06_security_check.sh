@@ -120,4 +120,31 @@ else
   note "Apply the fixes you're comfortable with; none are required for Hermes to run."
 fi
 
+# ── Persist findings so the post-install summary can surface them ─
+# Both files land in logs/ which is already gitignored.
+HERMES_LOGS="$HOME/.hermes/logs"
+mkdir -p "$HERMES_LOGS"
+
+REVIEW_FILE="$HERMES_LOGS/security-review.txt"
+COUNT_FILE="$HERMES_LOGS/.security-findings-count"
+
+{
+  echo "# Security review — $(date -Iseconds)"
+  echo "# ${#FINDINGS[@]} finding(s)"
+  echo
+  if (( ${#FINDINGS[@]} == 0 )); then
+    echo "✓ No common issues found."
+  else
+    i=1
+    for f in "${FINDINGS[@]}"; do
+      echo "$i) $f"
+      echo
+      ((i++))
+    done
+    echo "These are suggestions only — nothing was changed on your system."
+  fi
+} > "$REVIEW_FILE" 2>/dev/null || true
+
+echo "${#FINDINGS[@]}" > "$COUNT_FILE" 2>/dev/null || true
+
 info "✓ Security review complete."

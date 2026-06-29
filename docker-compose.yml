@@ -10,7 +10,14 @@ services:
     env_file:
       - .env
     environment:
+      # Remap the internal hermes user to the host UID/GID at boot so files
+      # written to /opt/data land owned by your host user. HOST_UID/HOST_GID
+      # are written to .env by scripts/00_preflight.sh during install.
+      - HERMES_UID=${HOST_UID:-1000}
+      - HERMES_GID=${HOST_GID:-1000}
       - HERMES_DASHBOARD=${HERMES_DASHBOARD:-1}
+      # Bind dashboard to loopback — no auth provider needed, reach it via SSH tunnel or Tailscale.
+      - HERMES_DASHBOARD_HOST=127.0.0.1
       # Telegram
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}

@@ -1,0 +1,32 @@
+# ~/.hermes/.gitignore
+# This file is installed by scripts/02_hermes_init.sh.
+# ~/.hermes is not a git repo by default, but this file ensures
+# the right things are excluded if it ever becomes one.
+
+# Transient runtime databases (re-exported to markdown on every sync)
+state.db
+state.db-wal
+state.db-shm
+kanban.db
+kanban.db-wal
+kanban.db-shm
+
+# Large regenerable caches (HF models, Playwright, etc.)
+cache/
+
+# Logs (ephemeral, potentially large)
+logs/
+*.log
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Nested git repos with their own remotes — must never be tracked as submodules
+memory-sync/
+memory-repo-cache/
+
+# Secret config: holds the Telegram bot token and voice keys
+config.yaml
+config.yaml.bak
+.config.hash

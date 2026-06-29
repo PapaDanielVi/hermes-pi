@@ -16,10 +16,6 @@ MEMORY_SYNC_DIR="$REPO_DIR/memory"
 # ── Configure git for memory sync ────────────────────────────────
 info "Configuring git for memory repository..."
 
-# Set git config for the bot user
-git config --global user.name "Hermes Agent"
-git config --global user.email "hermes@local"
-
 # Store credentials for the memory repo using the token
 # Format: https://TOKEN@github.com/owner/repo.git
 MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_TOKEN@|")
@@ -34,7 +30,10 @@ if [[ ! -d "$SYNC_CACHE/.git" ]]; then
     sudo mkdir -p "$SYNC_CACHE"
     sudo chown -R "$USER:$USER" "$HOME/.hermes"
     cd "$SYNC_CACHE"
-    git init
+    git init -b main
+    # Set identity locally so the operator's global git config is never touched.
+    git config user.name "Hermes Agent"
+    git config user.email "hermes@local"
     git remote add origin "$MEMORY_REPO_URL"
 
     if git ls-remote --exit-code --heads origin main &>/dev/null; then
@@ -49,8 +48,11 @@ if [[ ! -d "$SYNC_CACHE/.git" ]]; then
         git add -A
         git -c user.name="Hermes Agent" -c user.email="hermes@local" \
             commit -m "Initial memory repository structure"
-        git branch -M main
-        git push -u origin main
+        if ! git push -u origin main 2>&1; then
+            warn "Failed to push to $GITHUB_MEMORY_REPO."
+            warn "Check that GITHUB_TOKEN has 'Contents: Read and write' permission on that repo."
+            warn "The local cache is ready; the push can be retried by re-running this script."
+        fi
     fi
     cd - > /dev/null
 fi

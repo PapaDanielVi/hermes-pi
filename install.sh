@@ -198,6 +198,26 @@ print_summary() {
     warn "    (or re-run ./install.sh to add it to .env)"
     warn "    docker compose restart hermes"
   fi
+
+  # ── Kanban board ──────────────────────────────────────────────
+  info ""
+  info "  Kanban board — send these from Telegram (or any gateway chat):"
+  info "    /kanban list               — show all open tasks"
+  info "    /kanban create \"<title>\"   — create a new task"
+  info "    /kanban show <id>          — show task detail + history"
+
+  # ── Security summary ──────────────────────────────────────────
+  # 06_security_check.sh writes a count to ~/.hermes/logs/.security-findings-count.
+  local _sec_count_file="$HOME/.hermes/logs/.security-findings-count"
+  local _sec_count=0
+  [[ -f "$_sec_count_file" ]] && _sec_count="$(cat "$_sec_count_file" 2>/dev/null || echo 0)"
+  if [[ "${_sec_count:-0}" -gt 0 ]]; then
+    info ""
+    warn "  Security review flagged $_sec_count item(s) — see the output above, or re-run:"
+    warn "    ./scripts/06_security_check.sh"
+    warn "  Full report saved to:  ~/.hermes/logs/security-review.txt"
+  fi
+
   info "═══════════════════════════════════════════════════"
 }
 

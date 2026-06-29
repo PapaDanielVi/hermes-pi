@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/04_hermes_start.sh
-# Pulls Docker image and starts Hermes gateway
+# Pulls Docker image and starts Hermes gateway.
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -8,6 +8,11 @@ info() { echo "[04_hermes_start] $*"; }
 warn() { echo "[04_hermes_start] $*" >&2; }
 
 cd "$REPO_DIR"
+
+# ── Clean stale lock files ─────────────────────────────────────
+# Lock files left by a crashed or interrupted previous run block the kanban
+# dispatcher on restart. Remove them before the container starts.
+sudo rm -f "$HOME/.hermes"/*.init.lock 2>/dev/null || true
 
 # ── Pull latest Hermes image ───────────────────────────────────
 info "Pulling Hermes Docker image..."

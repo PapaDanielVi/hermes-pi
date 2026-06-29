@@ -68,4 +68,12 @@ else
   info "HERMES_MEM_LIMIT already set to '$EXISTING' — keeping it."
 fi
 
+# ── Record host UID/GID for docker-compose user: mapping ─────
+# docker-compose passes these to the container so it runs as the same user
+# as the host. This means files created in ~/.hermes (mounted as /opt/data)
+# are owned by the host user — no special permissions needed on the volume.
+env_set "$ENV_FILE" HOST_UID "$(id -u)"
+env_set "$ENV_FILE" HOST_GID "$(id -g)"
+info "Set HOST_UID=$(id -u) HOST_GID=$(id -g) in .env"
+
 info "✓ Pre-flight checks passed."
