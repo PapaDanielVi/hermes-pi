@@ -35,11 +35,11 @@ services:
         limits:
           memory: ${HERMES_MEM_LIMIT:-3G} # set per-board by scripts/00_preflight.sh
           cpus: "2.0"
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8642/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+    # No Docker-level healthcheck: port 8642 only serves /health when the
+    # OpenAI-compatible API server is explicitly enabled (API_SERVER_ENABLED=1),
+    # which this Telegram-only deployment does not do, so nothing ever listens
+    # there. Readiness is checked once at install time via `hermes doctor`
+    # (see scripts/04_hermes_start.sh); ongoing health is visible via
+    # `docker exec -it hermes hermes doctor` or `docker compose logs hermes`.
     # ARM64 compatibility: nousresearch/hermes-agent:latest supports multi-arch including ARM64/v8
     stop_grace_period: 30s

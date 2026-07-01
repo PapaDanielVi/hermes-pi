@@ -14,6 +14,14 @@ set +a
 HERMES_HOME="$HOME/.hermes"
 SYNC_DIR="$HERMES_HOME/memory-sync"
 
+# GitHub memory backup is optional. When it is not configured, skip entirely
+# rather than erroring — this lets cron and hermes-stop.sh call this script
+# unconditionally regardless of whether backup is enabled.
+if [[ -z "${GITHUB_MEMORY_REPO:-}" || -z "${GITHUB_TOKEN:-}" ]]; then
+    echo "[sync] GitHub memory backup not configured (GITHUB_MEMORY_REPO/GITHUB_TOKEN empty) — skipping."
+    exit 0
+fi
+
 # Build authenticated URL for the memory repo
 MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_TOKEN@|")
 
@@ -53,13 +61,42 @@ cd "$SYNC_DIR"
 # ── Export sessions from state.db ─────────────────────────────────
 if [[ -f "$HERMES_HOME/state.db" ]]; then
     echo "[sync] Exporting sessions from state.db..."
-    python3 "$REPO_DIR/memory/export_sessions.py" "$HERMES_HOME/state.db" "$SYNC_DIR"
+    # Non-fatal: a state.db schema change must not block the skills/memory
+    # push that follows.
+    python3 "$REPO_DIR/memory/export_sessions.py" "$HERMES_HOME/state.db" "$SYNC_DIR" \
+        || echo "[sync] Session export failed, continuing without it."
 fi
 
 # ── Export shared memory ────────────────────────────────────────
-if [[ -f "$HERMES_HOME/MEMORY.md" ]]; then
+# Hermes writes curated memory under $HERMES_HOME/memories/ (MEMORY.md and
+# USER.md), not as flat files directly in $HERMES_HOME.
+mkdir -p "$SYNC_DIR/shared"
+if [[ -f "$HERMES_HOME/memories/MEMORY.md" ]]; then
     echo "[sync] Updating shared MEMORY.md..."
-    cp "$HERMES_HOME/MEMORY.md" "$SYNC_DIR/shared/" 2>/dev/null || mkdir -p "$SYNC_DIR/shared"
+    cp "$HERMES_HOME/memories/MEMORY.md" "$SYNC_DIR/shared/MEMORY.md"
+fi
+if [[ -f "$HERMES_HOME/memories/USER.md" ]]; then
+    echo "[sync] Updating shared USER.md..."
+    cp "$HERMES_HOME/memories/USER.md" "$SYNC_DIR/shared/USER.md"
+fi
+
+# ── Export skills ──────────────────────────────────────────────
+# Agent-created skills always land in $HERMES_HOME/skills/. Mirror the actual
+# files (not just a generated index) so they are recoverable from GitHub.
+if [[ -d "$HERMES_HOME/skills" ]]; then
+    echo "[sync] Updating shared skills..."
+    mkdir -p "$SYNC_DIR/shared/skills"
+    rsync -a --delete "$HERMES_HOME/skills/" "$SYNC_DIR/shared/skills/" 2>/dev/null \
+        || cp -r "$HERMES_HOME/skills/." "$SYNC_DIR/shared/skills/"
+
+    {
+        echo "# Hermes Skills"
+        echo
+        (
+            shopt -s nullglob
+            cd "$HERMES_HOME/skills" && for f in *.md; do echo "- $f"; done | sort
+        )
+    } > "$SYNC_DIR/shared/skills.md"
 fi
 
 # ── Git commit and push ───────────────────────────────────────────

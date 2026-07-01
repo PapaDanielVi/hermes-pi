@@ -22,18 +22,30 @@ docker compose pull
 info "Starting Hermes gateway..."
 docker compose up -d
 
-# ── Wait for health check ───────────────────────────────────────
-info "Waiting for Hermes to become healthy..."
-for i in {1..30}; do
-    if docker compose exec -T hermes curl -sf http://localhost:8642/health >/dev/null 2>&1; then
+# ── Check health via `hermes doctor` ─────────────────────────────
+# Port 8642 only serves /health when the OpenAI-compatible API server is
+# explicitly enabled (API_SERVER_ENABLED=1); this Telegram-only deployment
+# never sets that, so nothing ever listens there and curl-polling it just
+# burns the full timeout. `hermes doctor` (bundled in the image) checks
+# config, dependencies, and provider connectivity instead, and is what's
+# actually available to check.
+info "Checking Hermes health with 'hermes doctor'..."
+doctor_output=""
+doctor_ok=0
+for i in {1..15}; do
+    if doctor_output="$(docker compose exec -T hermes hermes doctor 2>&1)"; then
         info "✓ Hermes is healthy and running"
+        doctor_ok=1
         break
-    fi
-    if [[ $i -eq 30 ]]; then
-        warn "Hermes health check timed out. Check logs with:"
-        warn "  docker compose logs hermes"
     fi
     sleep 2
 done
+
+if [[ "$doctor_ok" -eq 0 ]]; then
+    warn "'hermes doctor' reported issues:"
+    while IFS= read -r line; do warn "  $line"; done <<< "$doctor_output"
+    warn "Check logs with: docker compose logs hermes"
+    warn "Re-check anytime with: docker exec -it hermes hermes doctor"
+fi
 
 info "✓ Hermes started."

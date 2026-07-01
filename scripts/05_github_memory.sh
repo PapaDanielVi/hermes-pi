@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # scripts/05_github_memory.sh
-# Configures git credentials and installs cron job for memory sync
+# Configures the optional GitHub memory backup (git remote, initial sync, cron
+# job) and installs the Hermes systemd service. GitHub backup is skipped
+# cleanly when GITHUB_MEMORY_REPO/GITHUB_TOKEN are not set in .env — memory
+# and skills then stay local to this Pi only, with no off-device copy.
 set -euo pipefail
 
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -13,53 +16,35 @@ set -a; source "$REPO_DIR/.env"; set +a
 
 MEMORY_SYNC_DIR="$REPO_DIR/memory"
 
-# ── Configure git for memory sync ────────────────────────────────
-info "Configuring git for memory repository..."
+# Ensure ~/.hermes is fully owned by the current user (guards against sudo
+# leftovers from earlier install attempts) before anything writes into it.
+sudo chown -R "$USER:$USER" "$HOME/.hermes"
 
-# Store credentials for the memory repo using the token
-# Format: https://TOKEN@github.com/owner/repo.git
-MEMORY_REPO_URL=$(echo "$GITHUB_MEMORY_REPO" | sed "s|https://|https://$GITHUB_TOKEN@|")
-
-# Set up local cache of the memory repo.
-# If the remote is empty (freshly created on GitHub), seed it with the initial
-# directory structure and push. Otherwise pull existing content.
-SYNC_CACHE="$HOME/.hermes/memory-repo-cache"
-if [[ ! -d "$SYNC_CACHE/.git" ]]; then
-    info "Setting up memory repo cache..."
-    sudo rm -rf "$SYNC_CACHE"
-    sudo mkdir -p "$SYNC_CACHE"
-    sudo chown -R "$USER:$USER" "$HOME/.hermes"
-    cd "$SYNC_CACHE"
-    git init -b main
-    # Set identity locally so the operator's global git config is never touched.
-    git config user.name "Hermes Agent"
-    git config user.email "hermes@local"
-    git remote add origin "$MEMORY_REPO_URL"
-
-    if git ls-remote --exit-code --heads origin main &>/dev/null; then
-        info "Remote has commits, pulling..."
-        git fetch origin main --depth 1
-        git checkout -b main origin/main
-    else
-        info "Remote is empty, seeding initial structure and pushing..."
-        mkdir -p shared users
-        printf '# Hermes Agent Memory\n' > shared/MEMORY.md
-        printf '# Hermes Skills\n' > shared/skills.md
-        git add -A
-        git -c user.name="Hermes Agent" -c user.email="hermes@local" \
-            commit -m "Initial memory repository structure"
-        if ! git push -u origin main 2>&1; then
-            warn "Failed to push to $GITHUB_MEMORY_REPO."
-            warn "Check that GITHUB_TOKEN has 'Contents: Read and write' permission on that repo."
-            warn "The local cache is ready; the push can be retried by re-running this script."
-        fi
-    fi
-    cd - > /dev/null
+GITHUB_BACKUP_ENABLED=0
+if [[ -n "${GITHUB_MEMORY_REPO:-}" && -n "${GITHUB_TOKEN:-}" ]]; then
+    GITHUB_BACKUP_ENABLED=1
 fi
 
-# Ensure ~/.hermes is fully owned by the current user (guards against sudo
-# leftovers from earlier install attempts).
-sudo chown -R "$USER:$USER" "$HOME/.hermes"
+if [[ "$GITHUB_BACKUP_ENABLED" -eq 1 ]]; then
+    info "Configuring git for memory repository..."
+
+    # memory/sync.sh is the single source of truth for the GitHub memory clone
+    # (~/.hermes/memory-sync): it inits and seeds the repo on first run (or pulls
+    # if it already exists), exports skills/memory/sessions, and commits+pushes.
+    # It is idempotent — it never re-clones or wipes the clone once it exists, and
+    # it never touches the rest of ~/.hermes. Running it here does the same job
+    # the old duplicate clone-and-seed block did, with a real export instead of
+    # just placeholder files.
+    info "Running initial memory sync..."
+    chmod +x "$MEMORY_SYNC_DIR/sync.sh"
+    if ! REPO_DIR="$REPO_DIR" bash "$MEMORY_SYNC_DIR/sync.sh"; then
+        warn "Initial memory sync failed. Check that GITHUB_TOKEN has 'Contents: Read and write'"
+        warn "permission on $GITHUB_MEMORY_REPO. It will retry automatically via cron."
+    fi
+else
+    info "GitHub memory backup not configured — memory and skills will stay local to this Pi."
+    info "Run ./install.sh again to add a GITHUB_MEMORY_REPO/GITHUB_TOKEN and enable backup later."
+fi
 
 # ── Install and enable systemd service for boot + graceful shutdown ───
 info "Installing and enabling Hermes systemd service..."
@@ -78,18 +63,14 @@ else
 fi
 
 # ── Install cron job ────────────────────────────────────────────
-info "Installing memory sync cron job..."
-chmod +x "$MEMORY_SYNC_DIR/cron_setup.sh"
-"$MEMORY_SYNC_DIR/cron_setup.sh"
-
-# ── Ensure HERMES_HOME exists with proper structure ───────────────
-HERMES_HOME="$HOME/.hermes"
-mkdir -p "$HERMES_HOME/shared"
-mkdir -p "$HERMES_HOME/users"
-
-# Initialize shared memory files if they don't exist
-touch "$HERMES_HOME/shared/MEMORY.md"
-touch "$HERMES_HOME/shared/skills.md"
-
-info "✓ GitHub memory configuration complete."
-info "Memory sync will run every 30 minutes."
+if [[ "$GITHUB_BACKUP_ENABLED" -eq 1 ]]; then
+    info "Installing memory sync cron job..."
+    chmod +x "$MEMORY_SYNC_DIR/cron_setup.sh"
+    "$MEMORY_SYNC_DIR/cron_setup.sh"
+    info "✓ GitHub memory configuration complete."
+    info "Memory sync will run every 30 minutes."
+else
+    # Remove any cron entry from a previous run where backup was enabled.
+    (crontab -l 2>/dev/null | grep -v "memory/sync.sh") | crontab - 2>/dev/null || true
+    info "✓ Local-only setup complete (no GitHub backup, no sync cron job)."
+fi

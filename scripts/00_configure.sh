@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # scripts/00_configure.sh
 # Interactively builds the .env file. Reuses any existing values as defaults and
-# lets the user skip the Telegram channel and LLM provider sections to configure
-# them later from inside the container. The GitHub memory repo is required.
+# lets the user skip the Telegram channel, GitHub memory backup, and LLM provider
+# sections. GitHub memory backup is entirely optional — skip it to keep all data
+# local to the Pi with no off-device copy.
 #
 # Honours HERMES_NONINTERACTIVE=1: in that mode it does not prompt and only
 # validates the .env that is already present (used by the remote installer, which
@@ -52,7 +53,7 @@ write_env() {
     echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}"
     echo "TELEGRAM_ALLOWED_USERS=${TELEGRAM_ALLOWED_USERS}"
     echo
-    echo "# GitHub memory repository (required)"
+    echo "# GitHub memory repository (optional — leave empty to keep memory local only)"
     echo "GITHUB_MEMORY_REPO=${GITHUB_MEMORY_REPO}"
     echo "GITHUB_TOKEN=${GITHUB_TOKEN}"
     echo
@@ -83,11 +84,16 @@ write_env() {
 # ── Non-interactive: validate existing .env and exit ──────────
 if [[ "${HERMES_NONINTERACTIVE:-0}" == "1" ]]; then
   [[ -f "$ENV_FILE" ]] || error ".env not found and running non-interactively."
-  if [[ -z "$GITHUB_MEMORY_REPO" || -z "$GITHUB_TOKEN" ]]; then
-    error "GITHUB_MEMORY_REPO and GITHUB_TOKEN are required but missing in .env."
-  fi
-  if ! valid_repo_url "$GITHUB_MEMORY_REPO"; then
-    error "GITHUB_MEMORY_REPO must look like https://github.com/owner/repo."
+  # GitHub memory backup is optional: either both GITHUB_MEMORY_REPO and
+  # GITHUB_TOKEN are set, or both are empty. One without the other is a
+  # half-finished config, not "disabled".
+  if [[ -n "$GITHUB_MEMORY_REPO" || -n "$GITHUB_TOKEN" ]]; then
+    if [[ -z "$GITHUB_MEMORY_REPO" || -z "$GITHUB_TOKEN" ]]; then
+      error "Set both GITHUB_MEMORY_REPO and GITHUB_TOKEN to enable GitHub memory backup, or leave both empty to disable it."
+    fi
+    if ! valid_repo_url "$GITHUB_MEMORY_REPO"; then
+      error "GITHUB_MEMORY_REPO must look like https://github.com/owner/repo."
+    fi
   fi
   info "Using existing .env (non-interactive)."
   exit 0
@@ -115,21 +121,27 @@ else
 fi
 echo
 
-# ── GitHub memory repo — required ─────────────────────────────
-note "Step 2/4 · GitHub memory repository (required)"
-while :; do
-  prompt_value "Memory repo URL (https://github.com/owner/repo)" \
-    GITHUB_MEMORY_REPO "$GITHUB_MEMORY_REPO"
-  if valid_repo_url "$GITHUB_MEMORY_REPO"; then
-    break
-  fi
-  warn "Enter a URL like https://github.com/owner/repo."
-done
-while :; do
-  prompt_secret "GitHub token (repo scope)" GITHUB_TOKEN "$GITHUB_TOKEN"
-  [[ -n "$GITHUB_TOKEN" ]] && break
-  warn "A GitHub token is required to push memory."
-done
+# ── GitHub memory repo — skippable ────────────────────────────
+note "Step 2/4 · GitHub memory backup"
+if prompt_yesno "Back up memory and skills to a private GitHub repo? (skip to keep everything local only)" "y"; then
+  while :; do
+    prompt_value "Memory repo URL (https://github.com/owner/repo)" \
+      GITHUB_MEMORY_REPO "$GITHUB_MEMORY_REPO"
+    if valid_repo_url "$GITHUB_MEMORY_REPO"; then
+      break
+    fi
+    warn "Enter a URL like https://github.com/owner/repo."
+  done
+  while :; do
+    prompt_secret "GitHub token (repo scope)" GITHUB_TOKEN "$GITHUB_TOKEN"
+    [[ -n "$GITHUB_TOKEN" ]] && break
+    warn "A GitHub token is required to push memory."
+  done
+else
+  GITHUB_MEMORY_REPO=""
+  GITHUB_TOKEN=""
+  info "Skipped GitHub memory backup. Memory and skills stay local to this Pi only."
+fi
 echo
 
 # ── LLM provider — skippable ──────────────────────────────────

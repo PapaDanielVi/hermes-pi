@@ -150,11 +150,13 @@ run_remote() {
 # ──────────────────────────────────────────────────────────────
 print_summary() {
   local where="$1" target="${2:-}" ssh_opts_str="${3:-}"
-  local tg_token prov_a prov_o voice_enabled
+  local tg_token prov_a prov_o voice_enabled gh_repo gh_token
   tg_token="$(env_get "$REPO_DIR/.env" TELEGRAM_BOT_TOKEN)"
   prov_a="$(env_get "$REPO_DIR/.env" ANTHROPIC_API_KEY)"
   prov_o="$(env_get "$REPO_DIR/.env" OPENROUTER_API_KEY)"
   voice_enabled="$(env_get "$REPO_DIR/.env" HERMES_VOICE_ENABLED)"
+  gh_repo="$(env_get "$REPO_DIR/.env" GITHUB_MEMORY_REPO)"
+  gh_token="$(env_get "$REPO_DIR/.env" GITHUB_TOKEN)"
 
   local prefix=""
   if [[ "$where" == "remote" ]]; then
@@ -197,6 +199,12 @@ print_summary() {
     warn "    ${prefix}docker exec -it hermes hermes config   # set Telegram bot token + users"
     warn "    (or re-run ./install.sh to add it to .env)"
     warn "    docker compose restart hermes"
+  fi
+
+  if [[ -z "$gh_repo" || -z "$gh_token" ]]; then
+    info ""
+    info "  GitHub memory backup is off — memory and skills stay local to this Pi only."
+    info "  Re-run ./install.sh to add a GITHUB_MEMORY_REPO/GITHUB_TOKEN and enable it."
   fi
 
   # ── Kanban board ──────────────────────────────────────────────

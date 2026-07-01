@@ -22,9 +22,8 @@ logs/
 __pycache__/
 *.pyc
 
-# Nested git repos with their own remotes — must never be tracked as submodules
+# Nested git repo with its own remote — must never be tracked as a submodule
 memory-sync/
-memory-repo-cache/
 
 # Secret config: holds the Telegram bot token and voice keys
 config.yaml

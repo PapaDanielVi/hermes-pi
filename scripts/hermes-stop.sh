@@ -8,8 +8,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${REPO_DIR:-$(dirname "$SCRIPT_DIR")}"
 
 echo "[hermes-stop] Syncing memory before shutdown..."
-# Run sync in foreground to ensure completion before stop, pass REPO_DIR
-REPO_DIR="$REPO_DIR" bash "$REPO_DIR/memory/sync.sh"
+# Run sync in foreground so it completes before stop, but never let a sync
+# failure (e.g. a transient GitHub push error) block the container from
+# actually stopping.
+REPO_DIR="$REPO_DIR" bash "$REPO_DIR/memory/sync.sh" \
+    || echo "[hermes-stop] Memory sync failed, continuing with shutdown anyway."
 
 echo "[hermes-stop] Stopping Hermes container..."
 cd "$REPO_DIR"
