@@ -1,8 +1,26 @@
-# Browser HTTP API for local web search/fetch
-tools:
-  http_request:
-    enabled: true
-    base_url: "http://localhost:{{BROWSER_SERVER_PORT}}"
+# Built-in web search and page extraction (keyless free-tier ring with caching)
+web:
+  keyless_fallback: true
+  keyless_rescue: true
+  cache_enabled: true
+  cache_ttl_minutes: 20
+
+# Built-in Chromium browser automation (browser_exec over CDP inside the container)
+browser:
+  inactivity_timeout: 120
+  command_timeout: 45
+  headed: false
+  engine: auto
+  chromium_args:
+    - "--disable-gpu"
+    - "--disable-software-rasterizer"
+
+# Agent tool-use reliability (especially helpful for Claude/Gemini models)
+agent:
+  intent_ack_continuation: true
+  stall_guards: true
+  task_completion_guidance: true
+  parallel_tool_call_guidance: true
 
 # LLM providers (API keys passed via environment in docker-compose.yml)
 providers:

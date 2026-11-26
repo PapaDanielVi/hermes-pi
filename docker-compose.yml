@@ -4,7 +4,9 @@ services:
     container_name: hermes
     restart: unless-stopped
     command: gateway run
-    network_mode: host # lets it reach localhost:5555 (browser server)
+    network_mode: host # lets it reach localhost:5555 (browser server) and localhost:5556 (delegate MCP)
+    # Give Chromium (browser_exec) enough shared memory; Docker defaults to 64 MB.
+    shm_size: "256m"
     volumes:
       - ~/.hermes:/opt/data
     env_file:

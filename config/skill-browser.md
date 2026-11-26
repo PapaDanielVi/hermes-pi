@@ -1,44 +1,47 @@
-# Browser Search Skill
+---
+name: local-browser
+description: Web search, page extraction, and local Playwright stealth browser fallback on Raspberry Pi
+---
 
-## Overview
+# Web Search and Local Browser Usage
 
-This skill teaches Hermes how to use the local browser server for web search and content fetching. The browser server runs on `localhost:5555` and uses Playwright with Chromium to perform searches and fetch web content.
+## Preferred tools (use these first)
 
-## API Endpoints
+1. **`web_search` and `web_extract`**: Fast keyless web search and article extraction with built-in caching. Use these first for news, documentation, fact lookups, and reading static pages.
+2. **`browser_exec`**: Full headless Chromium inside the container over CDP. Use this when you need to interact with a real page (click buttons, fill forms, scroll JS-rendered apps, inspect the DOM, or capture screenshots).
 
-### Search
-- **Endpoint**: `POST /search`
-- **Body**: `{"query": "your search terms", "count": 10}`
-- **Returns**: JSON array of search results with title, URL, and snippet
+## Local Playwright stealth fallback (`http://127.0.0.1:{{BROWSER_SERVER_PORT}}`)
 
-### Fetch
-- **Endpoint**: `POST /fetch`
-- **Body**: `{"url": "https://example.com"}`
-- **Returns**: `{"content": "extracted text content", "title": "page title"}`
+If `web_search` hits rate limits or `web_extract` is blocked by bot checks, a local Playwright + stealth Chromium HTTP service runs on loopback port `{{BROWSER_SERVER_PORT}}`. Call it via the `terminal` tool with `curl`:
 
-### Health
-- **Endpoint**: `GET /health`
-- **Returns**: `{"status": "healthy"}` or service error
+### Search (DuckDuckGo via local Chromium)
 
-## When to Use This Tool
+```bash
+curl -sS -X POST http://127.0.0.1:{{BROWSER_SERVER_PORT}}/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "raspberry pi 5 news", "count": 5}'
+```
 
-Use the browser tool for:
-1. Current events or recent news
-2. Verifying facts that may have changed
-3. Looking up documentation for libraries/tools
-4. Searching for specific technical information
-5. Fetching content from URLs directly
+Returns `{"results": [{"title": "...", "url": "...", "snippet": "..."}]}`.
 
-## How to Call
+### Fetch readable text from a URL
 
-The browser server is called via the `http_request` tool configured in config.yaml. Use it when you need to:
+```bash
+curl -sS -X POST http://127.0.0.1:{{BROWSER_SERVER_PORT}}/fetch \
+  -H 'Content-Type: application/json' \
+  -d '{"url": "https://example.com"}'
+```
 
-- Search the web for information: Make a POST to `http://localhost:5555/search` with your query
-- Get the content of a specific page: Make a POST to `http://localhost:5555/fetch` with the URL
+Returns `{"title": "...", "content": "..."}`.
 
-## Error Handling
+### Health check
 
-If the browser server is unavailable or returns an error:
-- The search will fail gracefully
-- Fall back to using your training knowledge with a disclaimer about potential staleness
-- Report the failure to the user if the information is critical
+```bash
+curl -sS http://127.0.0.1:{{BROWSER_SERVER_PORT}}/health
+```
+
+## Notes
+
+- Prefer `web_search` / `web_extract` / `browser_exec` before calling the local HTTP fallback.
+- When passing dynamic queries or URLs through `terminal`, build the JSON body with `jq -n --arg q "$Q" '{query: $q, count: 5}'` so quotes and special characters are escaped properly.
+- If both built-in web tools and the local fallback fail, tell the user plainly instead of guessing.
