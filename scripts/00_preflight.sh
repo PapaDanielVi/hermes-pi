@@ -50,22 +50,32 @@ RAM_KB="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
 RAM_MB=$(( RAM_KB / 1024 ))
 info "Total RAM: ${RAM_MB} MB"
 
-# Leave headroom for the browser server (Chromium) and the OS.
-if   (( RAM_MB >= 7000 )); then MEM_LIMIT="3G"     # 8 GB Pi 5
-elif (( RAM_MB >= 3500 )); then MEM_LIMIT="2500M"  # 4 GB Pi 4/5
-elif (( RAM_MB >= 1700 )); then MEM_LIMIT="1500M"  # 2 GB Pi 4
+# Leave headroom for host services and the OS; official Hermes Docker docs recommend
+# 2-4 GB with browser tools active and 1g /dev/shm for Chromium.
+if   (( RAM_MB >= 7000 )); then MEM_LIMIT="4G";    SHM_SIZE="1g"   # 8 GB Pi 5
+elif (( RAM_MB >= 3500 )); then MEM_LIMIT="2500M"; SHM_SIZE="1g"   # 4 GB Pi 4/5
+elif (( RAM_MB >= 1700 )); then MEM_LIMIT="1500M"; SHM_SIZE="512m" # 2 GB Pi 4
 else
   MEM_LIMIT="1200M"
+  SHM_SIZE="512m"
   warn "Low RAM (${RAM_MB} MB). Performance will be limited; 4 GB or more recommended."
 fi
 
-# Only write the default if the user has not pinned one already.
+# Only write the defaults if the user has not pinned them already.
 EXISTING="$(env_get "$ENV_FILE" HERMES_MEM_LIMIT)"
 if [[ -z "$EXISTING" ]]; then
   env_set "$ENV_FILE" HERMES_MEM_LIMIT "$MEM_LIMIT"
   info "Set HERMES_MEM_LIMIT=$MEM_LIMIT in .env"
 else
   info "HERMES_MEM_LIMIT already set to '$EXISTING' — keeping it."
+fi
+
+EXISTING_SHM="$(env_get "$ENV_FILE" HERMES_SHM_SIZE)"
+if [[ -z "$EXISTING_SHM" ]]; then
+  env_set "$ENV_FILE" HERMES_SHM_SIZE "$SHM_SIZE"
+  info "Set HERMES_SHM_SIZE=$SHM_SIZE in .env"
+else
+  info "HERMES_SHM_SIZE already set to '$EXISTING_SHM', keeping it."
 fi
 
 # ── Record host UID/GID for docker-compose user: mapping ─────

@@ -385,10 +385,18 @@ Check it after a reboot:
 systemctl is-enabled hermes.service hermes-browser.service
 ```
 
-## Logs
+## Logs and dashboard
 
 ```bash
-docker compose logs -f hermes          # Hermes gateway
-journalctl -u hermes-browser -f        # Browser server
-crontab -l                             # See memory sync schedule
+docker compose logs -f hermes                       # Live container + dashboard logs
+tail -F ~/.hermes/logs/gateways/default/current     # Rotated gateway log (survives restarts)
+journalctl -u hermes-browser -f                     # Local Playwright fallback server
+crontab -l                                          # Memory sync schedule
+```
+
+The built-in web dashboard binds to `127.0.0.1:9119` inside the container (safe on LAN with no exposed port). Reach it from your laptop over an SSH tunnel:
+
+```bash
+ssh -L 9119:localhost:9119 <user>@<pi-host>
+# Then open http://localhost:9119
 ```

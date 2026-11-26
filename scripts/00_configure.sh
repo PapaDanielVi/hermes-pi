@@ -21,6 +21,7 @@ ENV_FILE="$REPO_DIR/.env"
 
 # Carry-through values not prompted here but preserved across re-runs.
 MEM_LIMIT="$(env_get "$ENV_FILE" HERMES_MEM_LIMIT)"
+SHM_SIZE="$(env_get "$ENV_FILE" HERMES_SHM_SIZE)"
 BROWSER_PORT="$(env_get "$ENV_FILE" BROWSER_SERVER_PORT)"
 DASHBOARD="$(env_get "$ENV_FILE" HERMES_DASHBOARD)"
 
@@ -77,6 +78,7 @@ write_env() {
     echo
     echo "# Runtime tuning"
     echo "HERMES_MEM_LIMIT=${MEM_LIMIT}"
+    echo "HERMES_SHM_SIZE=${SHM_SIZE}"
     echo "BROWSER_SERVER_PORT=${BROWSER_PORT}"
     echo "HERMES_DASHBOARD=${DASHBOARD}"
     echo

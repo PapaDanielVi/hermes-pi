@@ -1,16 +1,18 @@
 services:
   hermes:
-    image: nousresearch/hermes-agent:latest
+    image: nousresearch/hermes-agent:stable
     container_name: hermes
     restart: unless-stopped
     command: gateway run
     network_mode: host # lets it reach localhost:5555 (browser server) and localhost:5556 (delegate MCP)
-    # Give Chromium (browser_exec) enough shared memory; Docker defaults to 64 MB.
-    shm_size: "256m"
+    # Official Hermes Docker docs recommend 1g shared memory for Chromium (browser_exec);
+    # scripts/00_preflight.sh sets HERMES_SHM_SIZE per board (1g on 4 GB+, 512m on 2 GB).
+    shm_size: "${HERMES_SHM_SIZE:-1g}"
     volumes:
       - ~/.hermes:/opt/data
-    env_file:
-      - .env
+    # Only forward Hermes-specific vars explicitly below instead of loading the full
+    # repo .env via env_file, so host-only secrets like GITHUB_TOKEN stay out of the
+    # container. Docker Compose still reads .env for ${VAR} interpolation.
     environment:
       # Remap the internal hermes user to the host UID/GID at boot so files
       # written to /opt/data land owned by your host user. HOST_UID/HOST_GID
@@ -39,7 +41,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: ${HERMES_MEM_LIMIT:-3G} # set per-board by scripts/00_preflight.sh
+          memory: ${HERMES_MEM_LIMIT:-4G} # set per-board by scripts/00_preflight.sh
           cpus: "2.0"
     # No Docker-level healthcheck: port 8642 only serves /health when the
     # OpenAI-compatible API server is explicitly enabled (API_SERVER_ENABLED=1),
@@ -47,5 +49,5 @@ services:
     # there. Readiness is checked once at install time via `hermes doctor`
     # (see scripts/04_hermes_start.sh); ongoing health is visible via
     # `docker exec -it hermes hermes doctor` or `docker compose logs hermes`.
-    # ARM64 compatibility: nousresearch/hermes-agent:latest supports multi-arch including ARM64/v8
+    # ARM64 compatibility: nousresearch/hermes-agent:stable supports multi-arch including ARM64/v8
     stop_grace_period: 30s
