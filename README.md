@@ -21,7 +21,7 @@ internet, no inbound ports. Hermes auto-starts on boot and survives power-offs.
 ## Architecture
 
 ```
-Telegram ──► Hermes Gateway (Docker) ──► LLM API (Anthropic / OpenRouter)
+Telegram ──► Hermes Gateway (Docker) ──► LLM (Anthropic / OpenRouter / Google Antigravity)
   (text +          │                           │
   voice notes)     ├── ~/.hermes/state.db       ├── Browser Server (localhost:5555)
                    │   (SQLite, per-session)    │   Playwright + Chromium + Xvfb
@@ -60,10 +60,14 @@ hermes-pi/
 │   ├── browser_server.py        ← FastAPI + Playwright search/fetch server
 │   ├── requirements.txt
 │   └── browser.service          ← systemd unit file template
-└── memory/
-    ├── sync.sh                  ← git push per-user memory snapshots
-    ├── export_sessions.py       ← dumps state.db per Telegram user
-    └── cron_setup.sh            ← installs the cron job
+├── memory/
+│   ├── sync.sh                  ← git push per-user memory snapshots
+│   ├── export_sessions.py       ← dumps state.db per Telegram user
+│   └── cron_setup.sh            ← installs the cron job
+└── mcp/
+    ├── claude_delegate_server.py ← MCP server wrapping the Claude Code CLI
+    ├── requirements.txt
+    └── claude-delegate.service   ← systemd unit file template
 scripts/
 ├── 01_system_deps.sh            ← System packages install
 ├── 02_hermes_init.sh            ← Hermes home init
@@ -71,6 +75,7 @@ scripts/
 ├── 04_hermes_start.sh           ← Docker start
 ├── 05_github_memory.sh          ← GitHub sync config
 ├── 06_security_check.sh         ← Read-only security review (suggestions only)
+├── 07_dev_tools.sh              ← Optional: gh + Claude Code CLI + delegate service
 └── hermes-stop.sh               ← Graceful shutdown with sync
 ```
 
@@ -134,6 +139,9 @@ Under the hood the local install runs:
   systemd service for boot/shutdown
 - `scripts/06_security_check.sh` — read-only security review of the Pi; prints findings
   and suggested fixes, changes nothing
+- `scripts/07_dev_tools.sh` — optional, off by default: installs GitHub CLI + Claude
+  Code CLI and the Claude Code delegate MCP service on the Pi host (never inside
+  the Hermes container)
 
 ### 4  Finish configuration (if you skipped any)
 
@@ -153,6 +161,40 @@ You can also just re-run `./install.sh` to add the values to `.env`.
 Have each allowed user send `/start` to the bot. They should receive a greeting.
 Ask the agent to "search for today's news about Raspberry Pi" to verify the browser
 tool is working.
+
+---
+
+## Google Antigravity OAuth provider
+
+You can run Hermes on a Google Antigravity plan with no API key by picking `antigravity` in Step 3/5 of `./install.sh` (or setting `HERMES_ANTIGRAVITY_ENABLED=1` in `.env`).
+
+The installer sets up two things inside `~/.hermes` (mounted at `/opt/data` in the container, so both survive `docker compose pull && docker compose up -d`):
+
+1. Google's official Antigravity CLI (`agy`) at `~/.hermes/.local/bin/agy`, which is already on `PATH` inside the Hermes image.
+2. The [neerazz/hermes-antigravity-oauth](https://github.com/neerazz/hermes-antigravity-oauth) plugin, enabled in `~/.hermes/config.yaml` with `model.provider: antigravity-oauth`.
+
+After install, complete the one-time Google sign-in over SSH and choose an exact model ID from your plan:
+
+```bash
+# 1. Sign in (prints a Google URL to open on your laptop; paste the code back within ~60s)
+docker exec -it hermes hermes auth add antigravity-oauth
+
+# 2. List exact model IDs available on your plan
+docker exec -it -u hermes -e HOME=/opt/data hermes agy models
+
+# 3. Set your default model and restart Hermes
+docker exec -it hermes hermes config set model.default '<exact-model-id>'
+docker compose restart hermes
+```
+
+Check session health or model-group quota any time:
+
+```bash
+docker exec -it hermes hermes auth status antigravity-oauth
+docker exec -it hermes hermes usage --provider antigravity-oauth
+```
+
+The agy OAuth session is stored under `~/.hermes/.gemini/antigravity-cli/` and is excluded from GitHub memory sync and `~/.hermes/.gitignore`. Optional tuning variables (`ANTIGRAVITY_MODEL`, `ANTIGRAVITY_WORKSPACE_RULES`, `ANTIGRAVITY_CONTEXT_LENGTH`) are documented in `.env.example`.
 
 ---
 
@@ -207,6 +249,82 @@ Re-run it any time:
 
 ```bash
 ./scripts/06_security_check.sh
+```
+
+---
+
+## Delegating coding tasks to Claude Code
+
+Optional and off by default. Enable it during install (Step 5/5 in the configure
+prompts) or later by re-running `./install.sh` and answering yes. This gives
+**Hermes itself** a tool for delegating real coding work to the Claude Code CLI,
+so you can ask for it right from Telegram instead of doing it yourself:
+
+```
+you (Telegram): delegate to Claude Code: fix the flaky test in PapaDanielVi/some-repo
+```
+
+Under the hood, enabling this installs three things **on the Pi host** (never
+inside the Hermes container):
+
+1. `gh` and the Claude Code CLI, authenticated as **you** — your own GitHub
+   account and Claude Pro/Max subscription, completely separate from the
+   `GITHUB_TOKEN`/`ANTHROPIC_API_KEY` the Hermes container uses for memory
+   backup and chat replies.
+2. `hermes-claude-delegate.service` — a small local MCP server
+   (`mcp/claude_delegate_server.py`) that Hermes calls over `localhost` (the
+   container runs with `network_mode: host`, so no networking setup is needed).
+   It clones/pulls the repo you name via `gh`, then runs
+   `claude --dangerously-skip-permissions -p "<task>"` against it and returns
+   the result.
+3. `~/coding-workspace` — where repos get cloned to.
+
+Because all of this lives on the host filesystem (not the Hermes Docker image),
+running `docker compose pull && docker compose up -d` to update Hermes never
+touches or removes it.
+
+**One-time setup after install** (this part still needs SSH — Claude Code's
+login is an OAuth flow that needs a real browser once; day-to-day use afterwards
+is Telegram-only):
+
+```bash
+ssh <user>@<pi-host>
+
+# 1. GitHub CLI — authenticate as yourself
+gh auth login
+# Choose: GitHub.com → HTTPS → Login with a web browser.
+# Copy the one-time code shown, open the printed URL on your laptop, paste
+# the code, approve. Confirm it worked:
+gh auth status
+
+# 2. Claude Code CLI — log in with your Claude subscription (not an API key)
+claude
+# First run prints a login URL. Open it on your laptop's browser (the Pi has
+# no display). If the browser can't reach back to the Pi it shows a short
+# code instead — paste that into this SSH session. Confirm it worked:
+claude doctor
+
+# 3. Restart the delegate service so it picks up the credentials
+sudo systemctl restart hermes-claude-delegate
+```
+
+From then on, no more SSH: ask Hermes in Telegram to delegate a coding task, and
+it calls the local service for you.
+
+**Security note:** Claude Code runs unattended with `--dangerously-skip-permissions`
+— every allowed Telegram user can trigger real file edits, shell commands, and
+`git`/`gh` operations under your identity, with no per-action confirmation. The
+`hermes-claude-delegate.service` systemd unit sandboxes the process at the OS
+level (`ProtectSystem=strict`, `ProtectHome=read-only`, with write access only to
+`~/coding-workspace` and the `gh`/`claude` credential paths), but Claude Code
+itself is not further restricted within that boundary. Only enable this if you
+trust everyone in `TELEGRAM_ALLOWED_USERS` with that level of access.
+
+Check the service any time:
+
+```bash
+systemctl status hermes-claude-delegate
+journalctl -u hermes-claude-delegate -f
 ```
 
 ---

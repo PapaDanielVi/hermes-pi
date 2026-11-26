@@ -36,6 +36,10 @@ _config_inputs() {
   echo "${HERMES_TTS_PROVIDER:-edge}"
   echo "${HERMES_TTS_VOICE:-en-US-AriaNeural}"
   echo "${OPENROUTER_MODEL:-poolside/laguna-m.1:free}"
+  echo "${HERMES_ANTIGRAVITY_ENABLED:-0}"
+  echo "${ANTIGRAVITY_MODEL:-}"
+  echo "${HERMES_INSTALL_DEV_TOOLS:-0}"
+  echo "${CLAUDE_DELEGATE_PORT:-5556}"
   cat "$REPO_DIR/config/config.yaml.template"
   cat "$REPO_DIR/config/voice.yaml.template"
 }
@@ -65,10 +69,31 @@ if [[ ! -f "$CONFIG_FILE" || -z "$stored_hash" || "$current_hash" != "$stored_ha
     info "No Telegram token set — writing config.yaml without the telegram block."
   fi
 
+  if [[ "${HERMES_ANTIGRAVITY_ENABLED:-0}" == "1" ]]; then
+    MODEL_PROVIDER="antigravity-oauth"
+    MODEL_DEFAULT="${ANTIGRAVITY_MODEL:-}"
+  else
+    MODEL_PROVIDER="openrouter"
+    MODEL_DEFAULT="${OPENROUTER_MODEL:-poolside/laguna-m.1:free}"
+  fi
+  MODEL_DEFAULT_ESCAPED="${MODEL_DEFAULT//&/\\&}"
+
   sed \
     -e "s|{{BROWSER_SERVER_PORT}}|${BROWSER_SERVER_PORT:-5555}|g" \
-    -e "s|{{OPENROUTER_MODEL}}|${OPENROUTER_MODEL:-poolside/laguna-m.1:free}|g" \
+    -e "s|{{MODEL_PROVIDER}}|${MODEL_PROVIDER}|g" \
+    -e "s|{{MODEL_DEFAULT}}|${MODEL_DEFAULT_ESCAPED}|g" \
     "$REPO_DIR/config/config.yaml.template" >> "$CONFIG_FILE"
+
+  # Enable the Antigravity OAuth model-provider plugin when selected.
+  if [[ "${HERMES_ANTIGRAVITY_ENABLED:-0}" == "1" ]]; then
+    info "Antigravity OAuth enabled, adding antigravity-oauth to plugins.enabled..."
+    {
+      echo
+      echo "plugins:"
+      echo "  enabled:"
+      echo "    - antigravity-oauth"
+    } >> "$CONFIG_FILE"
+  fi
 
   # Append voice/STT/TTS config when voice mode is enabled.
   if [[ "${HERMES_VOICE_ENABLED:-1}" == "1" ]]; then
@@ -81,6 +106,20 @@ if [[ ! -f "$CONFIG_FILE" || -z "$stored_hash" || "$current_hash" != "$stored_ha
       "$REPO_DIR/config/voice.yaml.template" >> "$CONFIG_FILE"
   else
     info "Voice mode disabled — skipping voice config."
+  fi
+
+  # Append the Claude Code delegate MCP server when dev tools are enabled, so
+  # Hermes can call delegate_coding_task via the local hermes-claude-delegate
+  # service started by scripts/07_dev_tools.sh.
+  if [[ "${HERMES_INSTALL_DEV_TOOLS:-0}" == "1" ]]; then
+    info "Dev tools enabled — appending Claude Code delegate MCP server config…"
+    {
+      echo
+      echo "mcp_servers:"
+      echo "  claude_code:"
+      echo "    url: \"http://localhost:${CLAUDE_DELEGATE_PORT:-5556}\""
+      echo "    timeout: 1200"
+    } >> "$CONFIG_FILE"
   fi
 
   echo "$current_hash" > "$HASH_FILE"

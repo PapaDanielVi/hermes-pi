@@ -11,10 +11,10 @@ providers:
   openrouter:
     enabled: true
 
-# Active model — OpenRouter free tier by default, override via OPENROUTER_MODEL in .env
+# Active model (populated by scripts/02_hermes_init.sh from .env)
 model:
-  provider: openrouter
-  default: "{{OPENROUTER_MODEL}}"
+  provider: {{MODEL_PROVIDER}}
+  default: "{{MODEL_DEFAULT}}"
   base_url: ''
   api_mode: chat_completions
 

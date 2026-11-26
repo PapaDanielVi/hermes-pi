@@ -29,3 +29,8 @@ memory-sync/
 config.yaml
 config.yaml.bak
 .config.hash
+
+# Antigravity CLI binary, staging cache, and OAuth session tokens
+.gemini/
+.local/
+.cache/

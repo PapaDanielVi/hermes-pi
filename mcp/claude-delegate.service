@@ -1,0 +1,31 @@
+[Unit]
+Description=Hermes Claude Code Delegate (MCP server wrapping the Claude Code CLI)
+After=network.target
+
+[Service]
+Type=simple
+User={{HERMES_USER}}
+WorkingDirectory=/opt/hermes-pi/mcp
+Environment="CLAUDE_DELEGATE_PORT={{DELEGATE_PORT}}"
+Environment="CLAUDE_DELEGATE_WORKSPACE={{WORKSPACE_DIR}}"
+# The Claude Code native installer places the binary under ~/.local/bin, which
+# systemd cannot expand from a literal '~' — the resolved home dir is required here.
+Environment="PATH={{HERMES_HOME_DIR}}/.local/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/hermes-pi/delegate-venv/bin/python /opt/hermes-pi/mcp/claude_delegate_server.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening: delegate_coding_task runs Claude Code with
+# --dangerously-skip-permissions (no per-tool confirmation, per Danny's explicit
+# choice), so this is the OS-level backstop. Only the coding workspace and the
+# gh/claude credential paths are writable; everything else under the user's home
+# is read-only and the rest of the filesystem is protected.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={{WORKSPACE_DIR}} {{HERMES_HOME_DIR}}/.claude {{HERMES_HOME_DIR}}/.claude.json {{HERMES_HOME_DIR}}/.config/gh
+
+[Install]
+WantedBy=multi-user.target

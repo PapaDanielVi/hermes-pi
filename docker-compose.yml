@@ -24,6 +24,10 @@ services:
       # LLM providers (only the ones set in .env are forwarded)
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      # Google Antigravity OAuth plugin (used when HERMES_ANTIGRAVITY_ENABLED=1)
+      - ANTIGRAVITY_COMMAND=${ANTIGRAVITY_COMMAND:-}
+      - ANTIGRAVITY_WORKSPACE_RULES=${ANTIGRAVITY_WORKSPACE_RULES:-1}
+      - ANTIGRAVITY_CONTEXT_LENGTH=${ANTIGRAVITY_CONTEXT_LENGTH:-}
       # Voice: cloud STT/TTS keys (empty by default; only needed for cloud providers)
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}

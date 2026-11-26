@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # scripts/00_configure.sh
 # Interactively builds the .env file. Reuses any existing values as defaults and
-# lets the user skip the Telegram channel, GitHub memory backup, and LLM provider
-# sections. GitHub memory backup is entirely optional — skip it to keep all data
-# local to the Pi with no off-device copy.
+# lets the user skip the Telegram channel, GitHub memory backup, LLM provider,
+# voice mode, and dev tools sections. GitHub memory backup is entirely optional —
+# skip it to keep all data local to the Pi with no off-device copy. Dev tools
+# (GitHub CLI + Claude Code CLI) are off by default and only touch the Pi host,
+# never the Hermes container.
 #
 # Honours HERMES_NONINTERACTIVE=1: in that mode it does not prompt and only
 # validates the .env that is already present (used by the remote installer, which
@@ -30,6 +32,10 @@ GITHUB_TOKEN="$(env_get "$ENV_FILE" GITHUB_TOKEN)"
 ANTHROPIC_API_KEY="$(env_get "$ENV_FILE" ANTHROPIC_API_KEY)"
 OPENROUTER_API_KEY="$(env_get "$ENV_FILE" OPENROUTER_API_KEY)"
 OPENROUTER_MODEL="$(env_get "$ENV_FILE" OPENROUTER_MODEL)"
+HERMES_ANTIGRAVITY_ENABLED="$(env_get "$ENV_FILE" HERMES_ANTIGRAVITY_ENABLED)"
+ANTIGRAVITY_MODEL="$(env_get "$ENV_FILE" ANTIGRAVITY_MODEL)"
+ANTIGRAVITY_WORKSPACE_RULES="$(env_get "$ENV_FILE" ANTIGRAVITY_WORKSPACE_RULES)"
+ANTIGRAVITY_CONTEXT_LENGTH="$(env_get "$ENV_FILE" ANTIGRAVITY_CONTEXT_LENGTH)"
 HERMES_VOICE_ENABLED="$(env_get "$ENV_FILE" HERMES_VOICE_ENABLED)"
 HERMES_STT_PROVIDER="$(env_get "$ENV_FILE" HERMES_STT_PROVIDER)"
 HERMES_STT_MODEL="$(env_get "$ENV_FILE" HERMES_STT_MODEL)"
@@ -38,6 +44,8 @@ HERMES_TTS_VOICE="$(env_get "$ENV_FILE" HERMES_TTS_VOICE)"
 GROQ_API_KEY="$(env_get "$ENV_FILE" GROQ_API_KEY)"
 ELEVENLABS_API_KEY="$(env_get "$ENV_FILE" ELEVENLABS_API_KEY)"
 VOICE_TOOLS_OPENAI_KEY="$(env_get "$ENV_FILE" VOICE_TOOLS_OPENAI_KEY)"
+HERMES_INSTALL_DEV_TOOLS="$(env_get "$ENV_FILE" HERMES_INSTALL_DEV_TOOLS)"
+CLAUDE_DELEGATE_PORT="$(env_get "$ENV_FILE" CLAUDE_DELEGATE_PORT)"
 
 # ── Validators ────────────────────────────────────────────────
 valid_repo_url() { [[ "$1" =~ ^https://github\.com/[^/]+/[^/]+/?$ ]]; }
@@ -61,6 +69,11 @@ write_env() {
     echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}"
     echo "OPENROUTER_API_KEY=${OPENROUTER_API_KEY}"
     echo "OPENROUTER_MODEL=${OPENROUTER_MODEL}"
+    echo "# Google Antigravity OAuth provider (no API key; installs agy + antigravity-oauth plugin)"
+    echo "HERMES_ANTIGRAVITY_ENABLED=${HERMES_ANTIGRAVITY_ENABLED}"
+    echo "ANTIGRAVITY_MODEL=${ANTIGRAVITY_MODEL}"
+    echo "ANTIGRAVITY_WORKSPACE_RULES=${ANTIGRAVITY_WORKSPACE_RULES}"
+    echo "ANTIGRAVITY_CONTEXT_LENGTH=${ANTIGRAVITY_CONTEXT_LENGTH}"
     echo
     echo "# Runtime tuning"
     echo "HERMES_MEM_LIMIT=${MEM_LIMIT}"
@@ -77,6 +90,11 @@ write_env() {
     echo "GROQ_API_KEY=${GROQ_API_KEY}"
     echo "ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}"
     echo "VOICE_TOOLS_OPENAI_KEY=${VOICE_TOOLS_OPENAI_KEY}"
+    echo
+    echo "# Dev tools (optional): GitHub CLI + Claude Code CLI + delegate MCP server"
+    echo "# on the Pi host itself, so Hermes can delegate coding tasks from Telegram."
+    echo "HERMES_INSTALL_DEV_TOOLS=${HERMES_INSTALL_DEV_TOOLS}"
+    echo "CLAUDE_DELEGATE_PORT=${CLAUDE_DELEGATE_PORT}"
   } > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
 }
@@ -105,7 +123,7 @@ note "Answer the prompts below. Press Enter to keep a shown default."
 echo
 
 # ── Channel (Telegram) — skippable ────────────────────────────
-note "Step 1/4 · Telegram channel"
+note "Step 1/5 · Telegram channel"
 if prompt_yesno "Configure the Telegram channel now? (skip to set it up later)" "y"; then
   prompt_secret "Telegram bot token (from @BotFather)" TELEGRAM_BOT_TOKEN "$TELEGRAM_BOT_TOKEN"
   while :; do
@@ -122,7 +140,7 @@ fi
 echo
 
 # ── GitHub memory repo — skippable ────────────────────────────
-note "Step 2/4 · GitHub memory backup"
+note "Step 2/5 · GitHub memory backup"
 if prompt_yesno "Back up memory and skills to a private GitHub repo? (skip to keep everything local only)" "y"; then
   while :; do
     prompt_value "Memory repo URL (https://github.com/owner/repo)" \
@@ -145,16 +163,27 @@ fi
 echo
 
 # ── LLM provider — skippable ──────────────────────────────────
-note "Step 3/4 · LLM provider"
+note "Step 3/5 · LLM provider"
 if prompt_yesno "Configure an LLM provider now? (skip to set it up later)" "y"; then
+  _provider_default="anthropic"
+  [[ "${HERMES_ANTIGRAVITY_ENABLED:-0}" == "1" ]] && _provider_default="antigravity"
   local_provider=""
-  prompt_value "Provider [anthropic/openrouter/both]" local_provider "anthropic"
+  prompt_value "Provider [anthropic/openrouter/antigravity/both]" local_provider "$_provider_default"
   case "$local_provider" in
     anthropic)
+      HERMES_ANTIGRAVITY_ENABLED=0
       prompt_secret "Anthropic API key" ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" ;;
     openrouter)
+      HERMES_ANTIGRAVITY_ENABLED=0
       prompt_secret "OpenRouter API key" OPENROUTER_API_KEY "$OPENROUTER_API_KEY" ;;
+    antigravity|antigravity-oauth|agy)
+      HERMES_ANTIGRAVITY_ENABLED=1
+      info "Antigravity OAuth uses your Google Antigravity plan (no API key needed)."
+      info "The installer will install the agy CLI and the neerazz/hermes-antigravity-oauth plugin."
+      prompt_value "Antigravity model ID (optional; leave blank to pick from 'agy models' after sign-in)" \
+        ANTIGRAVITY_MODEL "$ANTIGRAVITY_MODEL" ;;
     both)
+      HERMES_ANTIGRAVITY_ENABLED=0
       prompt_secret "Anthropic API key" ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY"
       prompt_secret "OpenRouter API key" OPENROUTER_API_KEY "$OPENROUTER_API_KEY" ;;
     *)
@@ -166,7 +195,7 @@ fi
 echo
 
 # ── Voice mode — optional ─────────────────────────────────────
-note "Step 4/4 · Voice mode"
+note "Step 4/5 · Voice mode"
 _voice_default="y"
 [[ "${HERMES_VOICE_ENABLED:-1}" == "0" ]] && _voice_default="n"
 if prompt_yesno "Enable voice mode? (send voice notes to the bot and get voice replies)" "$_voice_default"; then
@@ -195,8 +224,22 @@ else
 fi
 echo
 
+# ── Dev tools (GitHub CLI + Claude Code CLI) — optional, off by default ──
+note "Step 5/5 · Dev tools (optional)"
+if prompt_yesno "Let Hermes delegate coding tasks to the Claude Code CLI, using your own GitHub account + Claude subscription? (installs gh + claude on this Pi, skip if you only want Hermes)" "n"; then
+  HERMES_INSTALL_DEV_TOOLS=1
+else
+  HERMES_INSTALL_DEV_TOOLS=0
+  info "Skipped dev tools. Run ./install.sh again anytime to add coding delegation."
+fi
+echo
+
 # Defaults for tuning values when starting from scratch.
 OPENROUTER_MODEL="${OPENROUTER_MODEL:-poolside/laguna-m.1:free}"
+HERMES_ANTIGRAVITY_ENABLED="${HERMES_ANTIGRAVITY_ENABLED:-0}"
+ANTIGRAVITY_MODEL="${ANTIGRAVITY_MODEL:-}"
+ANTIGRAVITY_WORKSPACE_RULES="${ANTIGRAVITY_WORKSPACE_RULES:-1}"
+ANTIGRAVITY_CONTEXT_LENGTH="${ANTIGRAVITY_CONTEXT_LENGTH:-}"
 BROWSER_PORT="${BROWSER_PORT:-5555}"
 DASHBOARD="${DASHBOARD:-1}"
 HERMES_VOICE_ENABLED="${HERMES_VOICE_ENABLED:-1}"
@@ -207,6 +250,8 @@ HERMES_TTS_VOICE="${HERMES_TTS_VOICE:-en-US-AriaNeural}"
 GROQ_API_KEY="${GROQ_API_KEY:-}"
 ELEVENLABS_API_KEY="${ELEVENLABS_API_KEY:-}"
 VOICE_TOOLS_OPENAI_KEY="${VOICE_TOOLS_OPENAI_KEY:-}"
+HERMES_INSTALL_DEV_TOOLS="${HERMES_INSTALL_DEV_TOOLS:-0}"
+CLAUDE_DELEGATE_PORT="${CLAUDE_DELEGATE_PORT:-5556}"
 
 write_env
 info "✓ Wrote $ENV_FILE (permissions 600)."

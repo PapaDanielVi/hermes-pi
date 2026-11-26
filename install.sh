@@ -72,6 +72,7 @@ run_local() {
     "scripts/04_hermes_start.sh"
     "scripts/05_github_memory.sh"
     "scripts/06_security_check.sh"
+    "scripts/07_dev_tools.sh"
   )
   for script in "${scripts[@]}"; do
     info "Running $script …"
@@ -150,17 +151,21 @@ run_remote() {
 # ──────────────────────────────────────────────────────────────
 print_summary() {
   local where="$1" target="${2:-}" ssh_opts_str="${3:-}"
-  local tg_token prov_a prov_o voice_enabled gh_repo gh_token
+  local tg_token prov_a prov_o prov_ag ag_model voice_enabled gh_repo gh_token dev_tools
   tg_token="$(env_get "$REPO_DIR/.env" TELEGRAM_BOT_TOKEN)"
   prov_a="$(env_get "$REPO_DIR/.env" ANTHROPIC_API_KEY)"
   prov_o="$(env_get "$REPO_DIR/.env" OPENROUTER_API_KEY)"
+  prov_ag="$(env_get "$REPO_DIR/.env" HERMES_ANTIGRAVITY_ENABLED)"
+  ag_model="$(env_get "$REPO_DIR/.env" ANTIGRAVITY_MODEL)"
   voice_enabled="$(env_get "$REPO_DIR/.env" HERMES_VOICE_ENABLED)"
   gh_repo="$(env_get "$REPO_DIR/.env" GITHUB_MEMORY_REPO)"
   gh_token="$(env_get "$REPO_DIR/.env" GITHUB_TOKEN)"
+  dev_tools="$(env_get "$REPO_DIR/.env" HERMES_INSTALL_DEV_TOOLS)"
 
-  local prefix=""
+  local prefix="" tty_prefix=""
   if [[ "$where" == "remote" ]]; then
     prefix="ssh ${ssh_opts_str} ${target} "
+    tty_prefix="ssh -t ${ssh_opts_str} ${target} "
   fi
 
   echo
@@ -186,10 +191,35 @@ print_summary() {
     info "  Toggle per-chat:  /voice tts (all replies), /voice on (voice-in only), /voice off"
   fi
 
-  if [[ -z "$prov_a" && -z "$prov_o" ]]; then
+  if [[ "${prov_ag:-0}" == "1" ]]; then
+    info ""
+    info "  Google Antigravity OAuth is enabled (agy CLI + antigravity-oauth plugin installed)."
+    info "  Finish the one-time Google sign-in, then pick a model from your plan:"
+    info "    1) Sign in (prints a Google URL to open on your laptop; paste the code back):"
+    info "         ${tty_prefix}docker exec -it hermes hermes auth add antigravity-oauth"
+    info "    2) List exact model IDs available on your plan:"
+    info "         ${tty_prefix}docker exec -it -u hermes -e HOME=/opt/data hermes agy models"
+    if [[ -n "$ag_model" ]]; then
+      info "    3) Default model is set to '$ag_model' (change anytime with hermes config set model.default '<id>')."
+      info "       Restart Hermes after sign-in:"
+    else
+      info "    3) Set your default model and restart Hermes:"
+      info "         ${tty_prefix}docker exec -it hermes hermes config set model.default '<exact-model-id>'"
+    fi
+    if [[ "$where" == "remote" ]]; then
+      info "         ${prefix}docker compose -f ~/hermes-pi/docker-compose.yml restart hermes"
+    else
+      info "         docker compose restart hermes"
+    fi
+    info "  Check status or quota anytime:"
+    info "    ${tty_prefix}docker exec -it hermes hermes auth status antigravity-oauth"
+    info "    ${tty_prefix}docker exec -it hermes hermes usage --provider antigravity-oauth"
+  fi
+
+  if [[ -z "$prov_a" && -z "$prov_o" && "${prov_ag:-0}" != "1" ]]; then
     info ""
     warn "  No LLM provider was set. Add one, then restart:"
-    warn "    ${prefix}docker exec -it hermes hermes config   # set provider key"
+    warn "    ${tty_prefix}docker exec -it hermes hermes config   # set provider key"
     warn "    (or re-run ./install.sh to add the key to .env)"
     warn "    docker compose restart hermes"
   fi
@@ -205,6 +235,18 @@ print_summary() {
     info ""
     info "  GitHub memory backup is off — memory and skills stay local to this Pi only."
     info "  Re-run ./install.sh to add a GITHUB_MEMORY_REPO/GITHUB_TOKEN and enable it."
+  fi
+
+  if [[ "${dev_tools:-0}" == "1" ]]; then
+    info ""
+    info "  Coding delegation is set up: gh + Claude Code CLI + the delegate MCP"
+    info "  service are installed on the Pi host (not the container). Finish the"
+    info "  one-time login, then it's all done from Telegram — no more SSH needed:"
+    info "    ${prefix}gh auth login      # log in as yourself (device/browser login)"
+    info "    ${prefix}claude             # log in with your Claude Pro/Max subscription"
+    info "  Both print a URL/code to complete on your laptop's browser — see"
+    info "  scripts/07_dev_tools.sh output above, or README.md, for the full walkthrough."
+    info "  After that, just ask Hermes in Telegram to delegate coding work."
   fi
 
   # ── Kanban board ──────────────────────────────────────────────
