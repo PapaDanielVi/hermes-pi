@@ -110,14 +110,16 @@ if [[ ! -f "$CONFIG_FILE" || -z "$stored_hash" || "$current_hash" != "$stored_ha
 
   # Append the Claude Code delegate MCP server when dev tools are enabled, so
   # Hermes can call delegate_coding_task via the local hermes-claude-delegate
-  # service started by scripts/07_dev_tools.sh.
+  # service started by scripts/07_dev_tools.sh. FastMCP serves streamable-http
+  # at /mcp, and Hermes posts JSON-RPC initialize directly to this URL.
   if [[ "${HERMES_INSTALL_DEV_TOOLS:-0}" == "1" ]]; then
-    info "Dev tools enabled — appending Claude Code delegate MCP server config…"
+    info "Dev tools enabled, appending Claude Code delegate MCP server config..."
     {
       echo
       echo "mcp_servers:"
       echo "  claude_code:"
-      echo "    url: \"http://localhost:${CLAUDE_DELEGATE_PORT:-5556}\""
+      echo "    url: \"http://127.0.0.1:${CLAUDE_DELEGATE_PORT:-5556}/mcp\""
+      echo "    connect_timeout: 30"
       echo "    timeout: 1200"
     } >> "$CONFIG_FILE"
   fi
@@ -128,14 +130,26 @@ else
   info "config.yaml is up to date — skipping (no .env or template changes detected)."
 fi
 
-# ── Copy browser skill file ───────────────────────────────────
-SKILL_DEST="$HERMES_HOME/skills/browser-search.md"
+# ── Install local-browser skill (directory + SKILL.md format) ─
+# Hermes discovers skills under ~/.hermes/skills/<name>/SKILL.md with YAML
+# frontmatter; flat .md files directly in ~/.hermes/skills/ are ignored.
+SKILL_DIR="$HERMES_HOME/skills/local-browser"
+SKILL_DEST="$SKILL_DIR/SKILL.md"
 SKILL_SRC="$REPO_DIR/config/skill-browser.md"
-if ! cmp -s "$SKILL_SRC" "$SKILL_DEST" 2>/dev/null; then
-  cp "$SKILL_SRC" "$SKILL_DEST"
-  info "Browser skill installed at $SKILL_DEST"
+mkdir -p "$SKILL_DIR"
+SKILL_TMP="$(mktemp)"
+sed "s|{{BROWSER_SERVER_PORT}}|${BROWSER_SERVER_PORT:-5555}|g" "$SKILL_SRC" > "$SKILL_TMP"
+if ! cmp -s "$SKILL_TMP" "$SKILL_DEST" 2>/dev/null; then
+  mv "$SKILL_TMP" "$SKILL_DEST"
+  info "Local browser skill installed at $SKILL_DEST"
 else
-  info "Browser skill already up to date — skipping."
+  rm -f "$SKILL_TMP"
+  info "Local browser skill already up to date — skipping."
+fi
+# Clean up the legacy flat file that Hermes's skill loader could not discover.
+if [[ -f "$HERMES_HOME/skills/browser-search.md" ]]; then
+  rm -f "$HERMES_HOME/skills/browser-search.md"
+  info "Removed legacy ~/.hermes/skills/browser-search.md (replaced by local-browser/SKILL.md)."
 fi
 
 # ── Install .gitignore for ~/.hermes ─────────────────────────

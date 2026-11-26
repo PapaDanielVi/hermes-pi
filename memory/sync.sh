@@ -93,8 +93,11 @@ if [[ -d "$HERMES_HOME/skills" ]]; then
         echo "# Hermes Skills"
         echo
         (
-            shopt -s nullglob
-            cd "$HERMES_HOME/skills" && for f in *.md; do echo "- $f"; done | sort
+            cd "$HERMES_HOME/skills"
+            find . -mindepth 2 -maxdepth 4 -name 'SKILL.md' -print \
+                | sed 's|^\./||; s|/SKILL\.md$||' \
+                | sort \
+                | sed 's/^/- /'
         )
     } > "$SYNC_DIR/shared/skills.md"
 fi

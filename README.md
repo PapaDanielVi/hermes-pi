@@ -34,12 +34,11 @@ Telegram ──► Hermes Gateway (Docker) ──► LLM (Anthropic / OpenRouter
                        per-user memory folders
 ```
 
-Two separate processes run alongside each other:
-1. **Hermes** in Docker (`docker-compose up -d`)
-2. **Browser server** as a systemd service (`browser_server.py` on port 5555)
+Two separate processes run alongside each other (plus an optional third for Claude Code delegation):
+1. **Hermes** in Docker (`docker-compose up -d`) with built-in keyless `web_search`/`web_extract`, built-in headless Chromium (`browser_exec` over CDP), `terminal`, file tools, memory, skills, cron, and kanban
+2. **Local Playwright browser fallback** as a systemd service (`browser_server.py` on `127.0.0.1:5555`), launched lazily on demand and reaped when idle
 
-Hermes calls the browser server via its built-in `http_request` tool, guided by a
-skill file that teaches it the API contract.
+Hermes uses its native `web_search`, `web_extract`, and `browser_exec` tools first. The `~/.hermes/skills/local-browser/SKILL.md` skill also teaches Hermes to fall back to the local Playwright + stealth server on `127.0.0.1:5555` via `terminal` if keyless search hits rate limits or a site blocks standard requests.
 
 ---
 

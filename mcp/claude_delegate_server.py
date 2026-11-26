@@ -14,6 +14,7 @@ with a Claude subscription rather than API billing.
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -24,21 +25,28 @@ WORKSPACE_ROOT = Path(
     os.environ.get("CLAUDE_DELEGATE_WORKSPACE", str(Path.home() / "coding-workspace"))
 )
 TASK_TIMEOUT_SECONDS = int(os.environ.get("CLAUDE_DELEGATE_TIMEOUT", "1200"))
+REPO_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 mcp = FastMCP(
     "claude-code-delegate",
     host="127.0.0.1",
     port=DELEGATE_PORT,
+    streamable_http_path="/mcp",
     stateless_http=True,
 )
 
 
 def _repo_dir(repo: str) -> Path:
-    """Map an "owner/repo" string to its clone path under the workspace root."""
-    owner, _, name = repo.partition("/")
-    if not owner or not name:
-        raise ValueError(f"repo must be 'owner/repo', got: {repo!r}")
-    return WORKSPACE_ROOT / owner / name
+    """Map a validated "owner/repo" string to its clone path under the workspace root."""
+    cleaned = repo.strip()
+    if not REPO_SLUG_RE.fullmatch(cleaned) or ".." in cleaned:
+        raise ValueError(f"repo must be a valid 'owner/repo' slug, got: {repo!r}")
+    owner, name = cleaned.split("/", 1)
+    workspace = WORKSPACE_ROOT.resolve()
+    target = (workspace / owner / name).resolve()
+    if not target.is_relative_to(workspace):
+        raise ValueError(f"repo path escapes workspace: {repo!r}")
+    return target
 
 
 def _ensure_repo(repo: str) -> Path:

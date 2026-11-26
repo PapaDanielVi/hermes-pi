@@ -199,15 +199,15 @@ not to skills or curated memory.
 These files are part of the implementation:
 
 ### Config
-- `config/config.yaml.template` — Body of the Hermes config (BROWSER_SERVER_PORT substituted; telegram block prepended by `02` when a token is set)
-- `config/voice.yaml.template` — Voice/STT/TTS config fragment (STT_PROVIDER, STT_MODEL, TTS_PROVIDER, TTS_VOICE substituted; appended by `02` when `HERMES_VOICE_ENABLED=1`)
-- `config/skill-browser.md` — Skill teaching Hermes the browser API endpoints
-- `config/hermes.service` — systemd unit for the Hermes container (boot start, memory sync on stop)
+- `config/config.yaml.template` - Body of the Hermes config: native `web` (keyless fallback/rescue + cache), `browser` (`browser_exec` headless Chromium tuning for Pi), `agent` tool-use guards (`intent_ack_continuation`, `stall_guards`, `parallel_tool_call_guidance`), `model`, `kanban`, `memory` (telegram block prepended by `02` when a token is set; `plugins.enabled` and `mcp_servers.claude_code` at `http://127.0.0.1:<port>/mcp` appended when enabled)
+- `config/voice.yaml.template` - Voice/STT/TTS config fragment (STT_PROVIDER, STT_MODEL, TTS_PROVIDER, TTS_VOICE substituted; appended by `02` when `HERMES_VOICE_ENABLED=1`)
+- `config/skill-browser.md` - Installed to `~/.hermes/skills/local-browser/SKILL.md` with YAML frontmatter; guides Hermes to prefer native `web_search`/`web_extract`/`browser_exec` and fall back to the local Playwright stealth server on `127.0.0.1:<BROWSER_SERVER_PORT>`
+- `config/hermes.service` - systemd unit for the Hermes container (boot start, memory sync on stop)
 
 ### Browser Server
-- `browser/browser_server.py` — FastAPI server with Playwright endpoints (`/search`, `/fetch`, `/health`)
-- `browser/requirements.txt` — Python dependencies (fastapi, uvicorn, playwright, playwright-stealth)
-- `browser/browser.service` — systemd unit for the browser service
+- `browser/browser_server.py` - Async FastAPI + `async_playwright` loopback fallback server (`/search`, `/fetch`, `/health`) bound to `127.0.0.1`, with lazy Chromium launch, idle shutdown reaper, v1/v2 `playwright-stealth` support, URL encoding, and DuckDuckGo redirect unwrapping
+- `browser/requirements.txt` - Python dependencies (fastapi, uvicorn, playwright, playwright-stealth)
+- `browser/browser.service` - systemd unit running `/opt/hermes-pi/browser/browser_server.py` on `127.0.0.1`
 
 ### Memory Sync
 - `memory/sync.sh` — Main sync script that exports sessions and pushes to GitHub
