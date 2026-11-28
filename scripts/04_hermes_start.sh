@@ -67,11 +67,17 @@ if [[ "${HERMES_ANTIGRAVITY_ENABLED:-0}" == "1" ]]; then
     info "Antigravity CLI ready: $agy_version"
 
     # Install and enable the hermes-antigravity-oauth plugin in /opt/data/plugins.
-    if [[ ! -d "$HOME/.hermes/plugins/antigravity-oauth" ]]; then
-        info "Installing hermes-antigravity-oauth plugin..."
-        docker compose exec -T hermes hermes plugins install "$ANTIGRAVITY_PLUGIN_REPO" --enable
+    # Prefer the curated catalog name `antigravity-oauth` so Hermes uses the
+    # human-reviewed pin (accepted non-interactively by Plugin Guard) and pass
+    # --yes-deps so headless installs do not trip the non-interactive consent gate.
+    if [[ ! -f "$HOME/.hermes/plugins/antigravity-oauth/plugin.yaml" ]]; then
+        info "Installing antigravity-oauth plugin from Hermes catalog..."
+        if ! docker compose exec -T hermes hermes plugins install antigravity-oauth --enable --yes-deps; then
+            warn "Catalog install failed; retrying from $ANTIGRAVITY_PLUGIN_REPO..."
+            docker compose exec -T hermes hermes plugins install "$ANTIGRAVITY_PLUGIN_REPO" --enable --yes-deps --force
+        fi
     else
-        info "hermes-antigravity-oauth plugin already installed; ensuring it is enabled..."
+        info "antigravity-oauth plugin already installed; ensuring it is enabled..."
         docker compose exec -T hermes hermes plugins enable antigravity-oauth
     fi
 
@@ -85,7 +91,10 @@ if [[ "${HERMES_ANTIGRAVITY_ENABLED:-0}" == "1" ]]; then
         sleep 2
     done
 
-    if docker compose exec -T hermes hermes auth status antigravity-oauth 2>/dev/null | grep -qi "logged in"; then
+    auth_status_out="$(docker compose exec -T hermes hermes auth status antigravity-oauth 2>&1 || true)"
+    if grep -qi "Unknown provider" <<< "$auth_status_out"; then
+        error "antigravity-oauth plugin did not register with Hermes: $auth_status_out"
+    elif grep -qi "logged in" <<< "$auth_status_out"; then
         antigravity_signed_in=1
         info "Antigravity OAuth session is active."
     else
